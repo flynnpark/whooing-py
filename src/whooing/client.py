@@ -6,7 +6,7 @@ from typing import Literal, cast
 import httpx
 
 from whooing.auth import APIKeyAuth, Auth, BearerTokenAuth
-from whooing.exceptions import WhooingResponseError, WhooingTransportError
+from whooing.exceptions import WhooingRateLimitError, WhooingResponseError, WhooingTransportError
 from whooing.resources import (
     AccountsResource,
     BudgetResource,
@@ -80,6 +80,14 @@ class WhooingClient:
             )
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
+
+        if response.status_code == 429:
+            raise WhooingRateLimitError(
+                "Whooing HTTP response failed with status 429.",
+                code=429,
+                rest_of_api=None,
+                error_parameters={},
+            )
 
         if response.status_code >= 400:
             raise WhooingResponseError(

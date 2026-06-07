@@ -77,9 +77,19 @@ def test_api_error_maps_rate_limit_code() -> None:
         client.get("user.json")
 
 
-def test_http_error_raises_response_error() -> None:
+def test_http_429_raises_rate_limit_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(429, text="Too Many Requests")
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(WhooingRateLimitError):
+        client.get("user.json")
+
+
+def test_http_error_raises_response_error() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="Server Error")
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
 
