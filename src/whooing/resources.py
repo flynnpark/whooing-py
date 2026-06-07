@@ -4,6 +4,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Generic, Protocol, TypeVar
 
+from whooing.models import EntryInput
 from whooing.types import JsonValue, RequestData, RequestValue
 
 ResponseT = TypeVar("ResponseT", covariant=True)
@@ -138,6 +139,9 @@ class EntriesResource(Generic[ResponseT]):
     def create(self, *, section_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.post("entries.json", data={"section_id": section_id, **fields})
 
+    def create_entry(self, *, section_id: str, entry: EntryInput) -> ResponseT:
+        return self.create(section_id=section_id, **entry.to_request_data())
+
     def create_many(
         self,
         *,
@@ -151,6 +155,12 @@ class EntriesResource(Generic[ResponseT]):
                 "data_type": "json",
                 "entries": json.dumps(list(entries), ensure_ascii=False),
             },
+        )
+
+    def create_many_entries(self, *, section_id: str, entries: Sequence[EntryInput]) -> ResponseT:
+        return self.create_many(
+            section_id=section_id,
+            entries=[entry.to_json_object() for entry in entries],
         )
 
     def update(
