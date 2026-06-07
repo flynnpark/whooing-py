@@ -27,6 +27,12 @@ asdf install
 uv sync --dev
 ```
 
+Pydantic 응답 파싱 헬퍼까지 사용하려면 optional extra를 포함해 설치합니다.
+
+```sh
+uv sync --extra pydantic --dev
+```
+
 ## 개발
 
 ```sh
@@ -82,6 +88,27 @@ with OAuth2TokenClient() as oauth:
     )
 ```
 
+Pydantic 모델로 응답 파싱:
+
+```python
+from pydantic import BaseModel
+from whooing import WhooingClient
+
+
+class Section(BaseModel):
+    section_id: str
+    title: str
+
+
+with WhooingClient(api_key="발급된_인증키") as client:
+    response = client.sections.list()
+    sections = response.parse_results_as(list[Section])
+```
+
+단일 객체 응답은 `response.parse_results(Model)`로, 전체 API 응답은
+`response.parse(ResponseModel)`로 검증할 수 있습니다. 이 기능은 `pydantic` extra를
+설치한 사용자에게만 제공되며, 기본 설치 사용자에게 Pydantic 의존성을 강제하지 않습니다.
+
 ## 리소스 구성
 
 - `client.users`: 사용자 정보, 사용자 로그, 포인트 로그
@@ -100,3 +127,5 @@ with OAuth2TokenClient() as oauth:
 - API 응답에는 요청 가능 횟수 정보가 포함되므로, 클라이언트 표면에서도 해당 메타데이터를
   버리지 않고 보존합니다.
 - 동기/비동기 클라이언트가 같은 리소스 경로 생성 로직을 공유하도록 구성합니다.
+- Pydantic은 optional extra로만 제공해, 강한 응답 모델링을 원하는 사용자와 가벼운 기본
+  설치를 원하는 사용자를 모두 지원합니다.

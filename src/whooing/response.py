@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Generic, Protocol, TypeVar
 
-from whooing.exceptions import WhooingAPIError, WhooingAuthError, WhooingRateLimitError
+from whooing.exceptions import (
+    WhooingAPIError,
+    WhooingAuthError,
+    WhooingPydanticUnavailableError,
+    WhooingRateLimitError,
+)
 from whooing.types import JsonObject, JsonValue
 
 T = TypeVar("T", bound=JsonValue)
+ModelT = TypeVar("ModelT", covariant=True)
+
+
+class PydanticModelType(Protocol[ModelT]):
+    @classmethod
+    def model_validate(cls, obj: object) -> ModelT: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +28,18 @@ class ApiResponse(Generic[T]):
     error_parameters: JsonObject
     results: T
     raw: JsonObject
+
+    def parse(self, model: PydanticModelType[ModelT]) -> ModelT:
+        return model.model_validate(self.raw)
+
+    def parse_results(self, model: PydanticModelType[ModelT]) -> ModelT:
+        return model.model_validate(self.results)
+
+    def parse_as(self, annotation: object) -> object:
+        return _validate_with_type_adapter(annotation, self.raw)
+
+    def parse_results_as(self, annotation: object) -> object:
+        return _validate_with_type_adapter(annotation, self.results)
 
 
 def parse_api_response(payload: JsonObject) -> ApiResponse[JsonValue]:
@@ -77,3 +100,15 @@ def _object_or_empty(value: JsonValue | None) -> JsonObject:
     if isinstance(value, dict):
         return value
     return {}
+
+
+def _validate_with_type_adapter(annotation: object, value: object) -> object:
+    try:
+        from pydantic import TypeAdapter
+    except ImportError as exc:
+        raise WhooingPydanticUnavailableError(
+            "Pydantic response parsing requires installing 'whooing-py[pydantic]'."
+        ) from exc
+
+    adapter: TypeAdapter[object] = TypeAdapter(annotation)
+    return adapter.validate_python(value)

@@ -16,12 +16,18 @@ dependencies = [
   "httpx>=0.28,<1",
 ]
 
+[project.optional-dependencies]
+pydantic = [
+  "pydantic>=2.10,<3",
+]
+
 [project.urls]
 Documentation = "https://whooing.com/api/docs"
 
 [dependency-groups]
 dev = [
   "mypy>=1.15",
+  "pydantic>=2.10,<3",
   "pytest>=8.3",
   "ruff>=0.9",
 ]

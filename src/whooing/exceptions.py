@@ -20,6 +20,14 @@ class WhooingResponseError(WhooingError):
         self.body = body
 
 
+class WhooingPydanticError(WhooingError):
+    """Raised when optional Pydantic response parsing cannot be completed."""
+
+
+class WhooingPydanticUnavailableError(WhooingPydanticError):
+    """Raised when Pydantic helpers are used without installing the optional extra."""
+
+
 class WhooingAPIError(WhooingError):
     def __init__(
         self,
