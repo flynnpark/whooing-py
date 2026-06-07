@@ -9,13 +9,16 @@ from whooing.models import (
     BasicTotalBudgetInput,
     BbsCommentInput,
     BbsPostInput,
+    BudgetGoalInput,
     BudgetInput,
+    CapitalGoalInput,
     EntryInput,
     FrequentItemInput,
     MessageInput,
     MonthlyItemInput,
     PostItInput,
     SectionInput,
+    UserInput,
 )
 from whooing.types import JsonValue, RequestData, RequestValue
 
@@ -41,6 +44,9 @@ class UsersResource(Generic[ResponseT]):
 
     def update(self, **fields: RequestValue) -> ResponseT:
         return self._client.put("user.json", data=fields)
+
+    def update_user(self, user: UserInput) -> ResponseT:
+        return self.update(**user.to_request_data())
 
     def logs(self, **params: RequestValue) -> ResponseT:
         return self._client.get("user_logs.json", params=params)
@@ -364,6 +370,9 @@ class BudgetResource(Generic[ResponseT]):
     def update_goal(self, *, section_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.put("budget_goal.json", data={"section_id": section_id, **fields})
 
+    def update_goal_from(self, *, section_id: str, goal: BudgetGoalInput) -> ResponseT:
+        return self.update_goal(section_id=section_id, **goal.to_request_data())
+
     def delete_goal(self, *, section_id: str) -> ResponseT:
         return self._client.delete("budget_goal.json", data={"section_id": section_id})
 
@@ -380,6 +389,17 @@ class BudgetResource(Generic[ResponseT]):
             str(key): value for key, value in monthly_goals.items()
         }
         return self._client.put("goal.json", data={"section_id": section_id, **goal_data})
+
+    def update_capital_goal_from(
+        self,
+        *,
+        section_id: str,
+        goal: CapitalGoalInput,
+    ) -> ResponseT:
+        return self._client.put(
+            "goal.json",
+            data={"section_id": section_id, **goal.to_request_data()},
+        )
 
 
 class ReportsResource(Generic[ResponseT]):

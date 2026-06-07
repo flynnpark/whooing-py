@@ -9,13 +9,16 @@ from whooing import (
     BasicTotalBudgetInput,
     BbsCommentInput,
     BbsPostInput,
+    BudgetGoalInput,
     BudgetInput,
+    CapitalGoalInput,
     EntryInput,
     FrequentItemInput,
     MessageInput,
     MonthlyItemInput,
     PostItInput,
     SectionInput,
+    UserInput,
     WhooingClient,
 )
 
@@ -309,3 +312,42 @@ def test_bbs_inputs_and_resource_helpers() -> None:
         "/api/bbs/notice/1.json",
         "/api/bbs/notice/1/c1.json",
     ]
+
+
+def test_user_input_and_resource_helper() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PUT"
+        assert request.url.path == "/api/user.json"
+        body = parse_qs(request.content.decode())
+        assert body["nickname"] == ["flynn"]
+        assert body["language"] == ["ko"]
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    response = client.users.update_user(UserInput(nickname="flynn", language="ko"))
+
+    assert response.results == {"ok": True}
+
+
+def test_goal_inputs_and_resource_helpers() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        body = parse_qs(request.content.decode())
+        assert body["section_id"] == ["s1"]
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    client.budgets.update_goal_from(
+        section_id="s1",
+        goal=BudgetGoalInput(start_date=202601, end_date=202612, extra_fields={"x1": 10000}),
+    )
+    client.budgets.update_capital_goal_from(
+        section_id="s1",
+        goal=CapitalGoalInput(monthly_goals={1: 10000, "12": 120000}),
+    )
+
+    assert calls == ["/api/budget_goal.json", "/api/goal.json"]

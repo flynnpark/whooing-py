@@ -27,6 +27,7 @@
 | 문서 영역 | 상태 | 구현 |
 | --- | --- | --- |
 | 사용자 | 완료 | `client.users` |
+| 사용자 요청 모델 | 부분 | `UserInput` |
 | 섹션 | 완료 | `client.sections` |
 | 섹션 요청 모델 | 부분 | `SectionInput` |
 | 계정 | 완료 | `client.accounts` |
@@ -37,6 +38,7 @@
 | 외부 거래 입력 | 완료 | `parse_outside`, `report_outside_source` |
 | 예산 | 완료 | `client.budgets` |
 | 예산 요청 모델 | 부분 | `BudgetInput`, `BasicTotalBudgetInput` |
+| 목표 예산 요청 모델 | 부분 | `BudgetGoalInput`, `CapitalGoalInput` |
 | 보고서 | 완료 | `client.reports` |
 | 자주입력/매월입력 | 완료 | `client.extras` |
 | 카드/입출금/캘린더 | 완료 | `client.extras` |

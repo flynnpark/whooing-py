@@ -10,6 +10,26 @@ AccountType = Literal["assets", "liabilities", "capital", "expenses", "income"]
 
 
 @dataclass(frozen=True, slots=True)
+class UserInput:
+    nickname: str | None = None
+    language: str | None = None
+    timezone: str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {}
+        if self.nickname is not None:
+            data["nickname"] = self.nickname
+        if self.language is not None:
+            data["language"] = self.language
+        if self.timezone is not None:
+            data["timezone"] = self.timezone
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
+
+
+@dataclass(frozen=True, slots=True)
 class SectionInput:
     title: str
     currency: str | None = None
@@ -81,6 +101,31 @@ class BasicTotalBudgetInput:
         }
         data.update({str(month): amount for month, amount in self.monthly_totals.items()})
         return data
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetGoalInput:
+    start_date: int | str | None = None
+    end_date: int | str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {}
+        if self.start_date is not None:
+            data["start_date"] = self.start_date
+        if self.end_date is not None:
+            data["end_date"] = self.end_date
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
+
+
+@dataclass(frozen=True, slots=True)
+class CapitalGoalInput:
+    monthly_goals: Mapping[int | str, int | float]
+
+    def to_request_data(self) -> RequestData:
+        return {str(month): amount for month, amount in self.monthly_goals.items()}
 
 
 @dataclass(frozen=True, slots=True)
