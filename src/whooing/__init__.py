@@ -42,6 +42,7 @@ from whooing.models import (
     UserInput,
 )
 from whooing.response import ApiResponse
+from whooing.retry import RetryPolicy
 
 __version__ = "0.1.0"
 
@@ -65,6 +66,7 @@ __all__ = [
     "MessageInput",
     "MonthlyItemInput",
     "PostItInput",
+    "RetryPolicy",
     "SectionInput",
     "UserInput",
     "OAuth1AccessToken",

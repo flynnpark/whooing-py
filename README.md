@@ -181,6 +181,21 @@ with WhooingClient(api_key="발급된_인증키") as client:
 dataclass 요청 모델을 제공합니다. 문서에 없는 필드나 새로 추가된 필드는 기존
 `**fields` 방식 또는 요청 모델의 `extra_fields`로 전달할 수 있습니다.
 
+선택적 재시도:
+
+```python
+from whooing import RetryPolicy, WhooingClient
+
+with WhooingClient(
+    api_key="발급된_인증키",
+    retry_policy=RetryPolicy(max_attempts=3, backoff_seconds=0.5),
+) as client:
+    response = client.users.get()
+```
+
+기본값은 재시도하지 않습니다. `RetryPolicy`를 명시한 경우에만 HTTP 429와 일시적인 5xx
+응답을 제한된 횟수로 다시 시도합니다.
+
 ## 리소스 구성
 
 - `client.users`: 사용자 정보, 사용자 로그, 포인트 로그
@@ -213,5 +228,6 @@ Pydantic 헬퍼로 검증하는 방식을 택했습니다.
 - API 응답에는 요청 가능 횟수 정보가 포함되므로, 클라이언트 표면에서도 해당 메타데이터를
   버리지 않고 보존합니다.
 - 동기/비동기 클라이언트가 같은 리소스 경로 생성 로직을 공유하도록 구성합니다.
+- 재시도는 기본 동작으로 강제하지 않고, `RetryPolicy`를 명시한 경우에만 적용합니다.
 - Pydantic은 optional extra로만 제공해, 강한 응답 모델링을 원하는 사용자와 가벼운 기본
   설치를 원하는 사용자를 모두 지원합니다.

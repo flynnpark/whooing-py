@@ -58,6 +58,7 @@
 | 공통 응답 메타데이터 | 완료 | `ApiResponse.code`, `message`, `rest_of_api`, `raw` |
 | API 오류 매핑 | 완료 | 인증, rate limit, 일반 API 오류 |
 | HTTP 429 매핑 | 완료 | `WhooingRateLimitError` |
+| 선택적 재시도 정책 | 완료 | `RetryPolicy` |
 | Optional Pydantic 파싱 | 완료 | `parse`, `parse_results`, `parse_as`, `parse_results_as` |
 | 리소스별 강한 응답 모델 | 미구현 | 기본 설치에 강제하지 않고 점진 추가 예정 |
 
@@ -67,4 +68,5 @@
 - 실제 API 응답 샘플을 기준으로 요청 모델 필드명을 추가 검증하고, 필요한 경우 alias를
   보강합니다.
 - 실제 계정이 필요한 통합 테스트는 환경 변수 기반으로 분리되어 있습니다.
-- rate limit 자동 대기나 재시도 정책은 기본 동작에 넣지 않고 선택 가능한 옵션으로 설계합니다.
+- 재시도 정책은 추가되어 있으나, 실제 운영 환경의 rate limit 사용 패턴에 맞춘 고급 정책은
+  별도 옵션으로 확장합니다.

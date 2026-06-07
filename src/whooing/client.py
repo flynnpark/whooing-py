@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Literal
 
 import httpx
@@ -17,6 +18,7 @@ from whooing.resources import (
     UsersResource,
 )
 from whooing.response import ApiResponse
+from whooing.retry import RetryPolicy
 from whooing.types import Headers, JsonValue, RequestData
 
 HttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
@@ -35,6 +37,7 @@ class WhooingClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float | httpx.Timeout = 10.0,
         transport: httpx.BaseTransport | None = None,
+        retry_policy: RetryPolicy | None = None,
     ) -> None:
         resolved_auth = resolve_auth(auth=auth, api_key=api_key, access_token=access_token)
         self._auth = resolved_auth
@@ -44,6 +47,7 @@ class WhooingClient:
             transport=transport,
             headers={"Accept": "application/json", **dict(resolved_auth.headers())},
         )
+        self._retry_policy = retry_policy
         self.users: UsersResource[SyncApiResponse] = UsersResource(self)
         self.sections: SectionsResource[SyncApiResponse] = SectionsResource(self)
         self.accounts: AccountsResource[SyncApiResponse] = AccountsResource(self)
@@ -70,16 +74,26 @@ class WhooingClient:
         data: RequestData | None = None,
         headers: Headers | None = None,
     ) -> ApiResponse[JsonValue]:
-        try:
-            response = self._client.request(
-                method,
-                path,
-                params=clean_params(params),
-                data=clean_params(data),
-                headers=headers,
-            )
-        except httpx.TransportError as exc:
-            raise WhooingTransportError(str(exc)) from exc
+        attempt = 1
+        while True:
+            try:
+                response = self._client.request(
+                    method,
+                    path,
+                    params=clean_params(params),
+                    data=clean_params(data),
+                    headers=headers,
+                )
+            except httpx.TransportError as exc:
+                raise WhooingTransportError(str(exc)) from exc
+
+            if self._retry_policy is None or not self._retry_policy.should_retry(response, attempt):
+                break
+
+            delay = self._retry_policy.delay_for(response, attempt)
+            if delay > 0:
+                time.sleep(delay)
+            attempt += 1
 
         return decode_api_response(response)
 

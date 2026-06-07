@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable
 from typing import Literal
 
@@ -18,6 +19,7 @@ from whooing.resources import (
     UsersResource,
 )
 from whooing.response import ApiResponse
+from whooing.retry import RetryPolicy
 from whooing.types import Headers, JsonValue, RequestData
 
 AsyncHttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
@@ -36,6 +38,7 @@ class AsyncWhooingClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float | httpx.Timeout = 10.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        retry_policy: RetryPolicy | None = None,
     ) -> None:
         resolved_auth = resolve_auth(auth=auth, api_key=api_key, access_token=access_token)
         self._auth = resolved_auth
@@ -45,6 +48,7 @@ class AsyncWhooingClient:
             transport=transport,
             headers={"Accept": "application/json", **dict(resolved_auth.headers())},
         )
+        self._retry_policy = retry_policy
         self.users = UsersResource[AsyncApiResponse](self)
         self.sections = SectionsResource[AsyncApiResponse](self)
         self.accounts = AccountsResource[AsyncApiResponse](self)
@@ -71,16 +75,26 @@ class AsyncWhooingClient:
         data: RequestData | None = None,
         headers: Headers | None = None,
     ) -> ApiResponse[JsonValue]:
-        try:
-            response = await self._client.request(
-                method,
-                path,
-                params=clean_params(params),
-                data=clean_params(data),
-                headers=headers,
-            )
-        except httpx.TransportError as exc:
-            raise WhooingTransportError(str(exc)) from exc
+        attempt = 1
+        while True:
+            try:
+                response = await self._client.request(
+                    method,
+                    path,
+                    params=clean_params(params),
+                    data=clean_params(data),
+                    headers=headers,
+                )
+            except httpx.TransportError as exc:
+                raise WhooingTransportError(str(exc)) from exc
+
+            if self._retry_policy is None or not self._retry_policy.should_retry(response, attempt):
+                break
+
+            delay = self._retry_policy.delay_for(response, attempt)
+            if delay > 0:
+                await asyncio.sleep(delay)
+            attempt += 1
 
         return decode_api_response(response)
 
