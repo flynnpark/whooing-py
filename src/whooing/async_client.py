@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable
 from typing import Literal, cast
 
 import httpx
@@ -19,13 +19,13 @@ from whooing.resources import (
 from whooing.response import ApiResponse, parse_api_response
 from whooing.types import Headers, JsonObject, JsonValue, RequestData, RequestValue
 
-HttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
-SyncApiResponse = ApiResponse[JsonValue]
+AsyncHttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
+AsyncApiResponse = Awaitable[ApiResponse[JsonValue]]
 
 DEFAULT_BASE_URL = "https://whooing.com/api/"
 
 
-class WhooingClient:
+class AsyncWhooingClient:
     def __init__(
         self,
         *,
@@ -34,36 +34,36 @@ class WhooingClient:
         access_token: str | None = None,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float | httpx.Timeout = 10.0,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         resolved_auth = _resolve_auth(auth=auth, api_key=api_key, access_token=access_token)
         self._auth = resolved_auth
-        self._client = httpx.Client(
+        self._client = httpx.AsyncClient(
             base_url=base_url,
             timeout=timeout,
             transport=transport,
             headers={"Accept": "application/json", **dict(resolved_auth.headers())},
         )
-        self.users: UsersResource[SyncApiResponse] = UsersResource(self)
-        self.sections: SectionsResource[SyncApiResponse] = SectionsResource(self)
-        self.accounts: AccountsResource[SyncApiResponse] = AccountsResource(self)
-        self.entries: EntriesResource[SyncApiResponse] = EntriesResource(self)
-        self.budgets: BudgetResource[SyncApiResponse] = BudgetResource(self)
-        self.reports: ReportsResource[SyncApiResponse] = ReportsResource(self)
-        self.extras: ExtrasResource[SyncApiResponse] = ExtrasResource(self)
+        self.users = UsersResource[AsyncApiResponse](self)
+        self.sections = SectionsResource[AsyncApiResponse](self)
+        self.accounts = AccountsResource[AsyncApiResponse](self)
+        self.entries = EntriesResource[AsyncApiResponse](self)
+        self.budgets = BudgetResource[AsyncApiResponse](self)
+        self.reports = ReportsResource[AsyncApiResponse](self)
+        self.extras = ExtrasResource[AsyncApiResponse](self)
 
-    def close(self) -> None:
-        self._client.close()
+    async def close(self) -> None:
+        await self._client.aclose()
 
-    def __enter__(self) -> WhooingClient:
+    async def __aenter__(self) -> AsyncWhooingClient:
         return self
 
-    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
-        self.close()
+    async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        await self.close()
 
-    def request(
+    async def request(
         self,
-        method: HttpMethod,
+        method: AsyncHttpMethod,
         path: str,
         *,
         params: RequestData | None = None,
@@ -71,7 +71,7 @@ class WhooingClient:
         headers: Headers | None = None,
     ) -> ApiResponse[JsonValue]:
         try:
-            response = self._client.request(
+            response = await self._client.request(
                 method,
                 path,
                 params=_clean_params(params),
@@ -99,16 +99,36 @@ class WhooingClient:
 
         return parse_api_response(payload)
 
-    def get(self, path: str, *, params: RequestData | None = None) -> ApiResponse[JsonValue]:
+    def get(
+        self,
+        path: str,
+        *,
+        params: RequestData | None = None,
+    ) -> AsyncApiResponse:
         return self.request("GET", path, params=params)
 
-    def post(self, path: str, *, data: RequestData | None = None) -> ApiResponse[JsonValue]:
+    def post(
+        self,
+        path: str,
+        *,
+        data: RequestData | None = None,
+    ) -> AsyncApiResponse:
         return self.request("POST", path, data=data)
 
-    def put(self, path: str, *, data: RequestData | None = None) -> ApiResponse[JsonValue]:
+    def put(
+        self,
+        path: str,
+        *,
+        data: RequestData | None = None,
+    ) -> AsyncApiResponse:
         return self.request("PUT", path, data=data)
 
-    def delete(self, path: str, *, data: RequestData | None = None) -> ApiResponse[JsonValue]:
+    def delete(
+        self,
+        path: str,
+        *,
+        data: RequestData | None = None,
+    ) -> AsyncApiResponse:
         return self.request("DELETE", path, data=data)
 
 
@@ -130,7 +150,7 @@ def _resolve_auth(
     raise ValueError("Authentication is required.")
 
 
-def _clean_params(data: RequestData | None) -> Mapping[str, RequestValue] | None:
+def _clean_params(data: RequestData | None) -> dict[str, RequestValue] | None:
     if data is None:
         return None
     return {key: value for key, value in data.items() if value is not None}

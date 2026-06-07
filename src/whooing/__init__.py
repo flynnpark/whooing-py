@@ -1,5 +1,6 @@
 """Typed Python client library for the Whooing Developer API."""
 
+from whooing.async_client import AsyncWhooingClient
 from whooing.auth import APIKeyAuth, BearerTokenAuth, OAuth1aAuth
 from whooing.client import WhooingClient
 from whooing.exceptions import (
@@ -17,6 +18,7 @@ __version__ = "0.1.0"
 __all__ = [
     "APIKeyAuth",
     "ApiResponse",
+    "AsyncWhooingClient",
     "BearerTokenAuth",
     "OAuth1aAuth",
     "WhooingAPIError",
