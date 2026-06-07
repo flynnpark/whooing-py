@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Literal, cast
+from typing import Literal
 
 import httpx
 
-from whooing.auth import APIKeyAuth, Auth, BearerTokenAuth
-from whooing.exceptions import WhooingRateLimitError, WhooingResponseError, WhooingTransportError
+from whooing._transport import clean_params, decode_api_response, resolve_auth
+from whooing.auth import Auth
+from whooing.exceptions import WhooingTransportError
 from whooing.resources import (
     AccountsResource,
     BudgetResource,
@@ -16,8 +16,8 @@ from whooing.resources import (
     SectionsResource,
     UsersResource,
 )
-from whooing.response import ApiResponse, parse_api_response
-from whooing.types import Headers, JsonObject, JsonValue, RequestData, RequestValue
+from whooing.response import ApiResponse
+from whooing.types import Headers, JsonValue, RequestData
 
 HttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
 SyncApiResponse = ApiResponse[JsonValue]
@@ -36,7 +36,7 @@ class WhooingClient:
         timeout: float | httpx.Timeout = 10.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        resolved_auth = _resolve_auth(auth=auth, api_key=api_key, access_token=access_token)
+        resolved_auth = resolve_auth(auth=auth, api_key=api_key, access_token=access_token)
         self._auth = resolved_auth
         self._client = httpx.Client(
             base_url=base_url,
@@ -74,38 +74,14 @@ class WhooingClient:
             response = self._client.request(
                 method,
                 path,
-                params=_clean_params(params),
-                data=_clean_params(data),
+                params=clean_params(params),
+                data=clean_params(data),
                 headers=headers,
             )
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
 
-        if response.status_code == 429:
-            raise WhooingRateLimitError(
-                "Whooing HTTP response failed with status 429.",
-                code=429,
-                rest_of_api=None,
-                error_parameters={},
-            )
-
-        if response.status_code >= 400:
-            raise WhooingResponseError(
-                f"Whooing HTTP response failed with status {response.status_code}.",
-                status_code=response.status_code,
-                body=response.text,
-            )
-
-        try:
-            payload = cast(JsonObject, response.json())
-        except ValueError as exc:
-            raise WhooingResponseError(
-                "Whooing response is not valid JSON.",
-                status_code=response.status_code,
-                body=response.text,
-            ) from exc
-
-        return parse_api_response(payload)
+        return decode_api_response(response)
 
     def get(self, path: str, *, params: RequestData | None = None) -> ApiResponse[JsonValue]:
         return self.request("GET", path, params=params)
@@ -118,27 +94,3 @@ class WhooingClient:
 
     def delete(self, path: str, *, data: RequestData | None = None) -> ApiResponse[JsonValue]:
         return self.request("DELETE", path, data=data)
-
-
-def _resolve_auth(
-    *,
-    auth: Auth | None,
-    api_key: str | None,
-    access_token: str | None,
-) -> Auth:
-    provided = [auth is not None, api_key is not None, access_token is not None]
-    if sum(provided) != 1:
-        raise ValueError("Provide exactly one of auth, api_key, or access_token.")
-    if auth is not None:
-        return auth
-    if api_key is not None:
-        return APIKeyAuth(api_key)
-    if access_token is not None:
-        return BearerTokenAuth(access_token)
-    raise ValueError("Authentication is required.")
-
-
-def _clean_params(data: RequestData | None) -> Mapping[str, RequestValue] | None:
-    if data is None:
-        return None
-    return {key: value for key, value in data.items() if value is not None}

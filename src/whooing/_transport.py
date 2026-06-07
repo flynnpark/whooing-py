@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import cast
+
+import httpx
+
+from whooing.auth import APIKeyAuth, Auth, BearerTokenAuth
+from whooing.exceptions import WhooingRateLimitError, WhooingResponseError
+from whooing.response import ApiResponse, parse_api_response
+from whooing.types import JsonObject, JsonValue, RequestData, RequestValue
+
+
+def resolve_auth(
+    *,
+    auth: Auth | None,
+    api_key: str | None,
+    access_token: str | None,
+) -> Auth:
+    provided = [auth is not None, api_key is not None, access_token is not None]
+    if sum(provided) != 1:
+        raise ValueError("Provide exactly one of auth, api_key, or access_token.")
+    if auth is not None:
+        return auth
+    if api_key is not None:
+        return APIKeyAuth(api_key)
+    if access_token is not None:
+        return BearerTokenAuth(access_token)
+    raise ValueError("Authentication is required.")
+
+
+def clean_params(data: RequestData | None) -> Mapping[str, RequestValue] | None:
+    if data is None:
+        return None
+    return {key: value for key, value in data.items() if value is not None}
+
+
+def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
+    if response.status_code == 429:
+        raise WhooingRateLimitError(
+            "Whooing HTTP response failed with status 429.",
+            code=429,
+            rest_of_api=None,
+            error_parameters={},
+        )
+
+    if response.status_code >= 400:
+        raise WhooingResponseError(
+            f"Whooing HTTP response failed with status {response.status_code}.",
+            status_code=response.status_code,
+            body=response.text,
+        )
+
+    try:
+        payload = cast(JsonObject, response.json())
+    except ValueError as exc:
+        raise WhooingResponseError(
+            "Whooing response is not valid JSON.",
+            status_code=response.status_code,
+            body=response.text,
+        ) from exc
+
+    return parse_api_response(payload)
