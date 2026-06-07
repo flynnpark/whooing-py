@@ -3,9 +3,13 @@
 from whooing.async_client import AsyncWhooingClient
 from whooing.auth import (
     APIKeyAuth,
+    AppAuthClient,
+    AsyncAppAuthClient,
     AsyncOAuth2TokenClient,
     BearerTokenAuth,
     OAuth1aAuth,
+    OAuth1AccessToken,
+    OAuth1RequestToken,
     OAuth2Token,
     OAuth2TokenClient,
 )
@@ -27,10 +31,14 @@ __version__ = "0.1.0"
 
 __all__ = [
     "APIKeyAuth",
+    "AppAuthClient",
     "ApiResponse",
+    "AsyncAppAuthClient",
     "AsyncWhooingClient",
     "AsyncOAuth2TokenClient",
     "BearerTokenAuth",
+    "OAuth1AccessToken",
+    "OAuth1RequestToken",
     "OAuth1aAuth",
     "OAuth2Token",
     "OAuth2TokenClient",

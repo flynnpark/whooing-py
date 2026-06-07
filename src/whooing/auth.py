@@ -76,6 +76,20 @@ class OAuth2Token:
     raw: JsonObject
 
 
+@dataclass(frozen=True, slots=True)
+class OAuth1RequestToken:
+    token: str
+    raw: JsonObject
+
+
+@dataclass(frozen=True, slots=True)
+class OAuth1AccessToken:
+    token: str
+    token_secret: str
+    user_id: int | None
+    raw: JsonObject
+
+
 class OAuth2TokenClient:
     def __init__(
         self,
@@ -134,6 +148,97 @@ class OAuth2TokenClient:
     def _post_json(self, url: str, data: RequestData) -> JsonObject:
         try:
             response = self._client.post(url, data={key: value for key, value in data.items()})
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+        return _decode_oauth_json(response)
+
+
+class AppAuthClient:
+    def __init__(
+        self,
+        *,
+        base_url: str = "https://whooing.com/app_auth/",
+        timeout: float | httpx.Timeout = 10.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> AppAuthClient:
+        return self
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        self.close()
+
+    def request_token(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        callback_uri: str | None = None,
+    ) -> OAuth1RequestToken:
+        params: dict[str, str] = {"app_id": app_id, "app_secret": app_secret}
+        if callback_uri is not None:
+            params["callbackuri"] = callback_uri
+        return _parse_oauth1_request_token(self._get_json("request_token", params))
+
+    def build_authorization_url(
+        self,
+        *,
+        token: str,
+        callback_uri: str | None = None,
+        no_register: bool = False,
+    ) -> str:
+        params: dict[str, str] = {"token": token}
+        if callback_uri is not None:
+            params["callbackuri"] = callback_uri
+        if no_register:
+            params["no_register"] = "y"
+        return str(self._client.base_url.join("authorize").copy_with(params=params))
+
+    def access_token(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        token: str,
+        pin: str,
+    ) -> OAuth1AccessToken:
+        return _parse_oauth1_access_token(
+            self._get_json(
+                "access_token",
+                {
+                    "app_id": app_id,
+                    "app_secret": app_secret,
+                    "token": token,
+                    "pin": pin,
+                },
+            )
+        )
+
+    def access_token_by_onetime(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        onetime_pin: str,
+    ) -> OAuth1AccessToken:
+        return _parse_oauth1_access_token(
+            self._get_json(
+                "access_token_by_onetime",
+                {
+                    "app_id": app_id,
+                    "app_secret": app_secret,
+                    "onetime_pin": onetime_pin,
+                },
+            )
+        )
+
+    def _get_json(self, path: str, params: RequestData) -> JsonObject:
+        try:
+            response = self._client.get(path, params={key: value for key, value in params.items()})
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
         return _decode_oauth_json(response)
@@ -205,6 +310,100 @@ class AsyncOAuth2TokenClient:
         return _decode_oauth_json(response)
 
 
+class AsyncAppAuthClient:
+    def __init__(
+        self,
+        *,
+        base_url: str = "https://whooing.com/app_auth/",
+        timeout: float | httpx.Timeout = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout, transport=transport)
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self) -> AsyncAppAuthClient:
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        await self.close()
+
+    async def request_token(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        callback_uri: str | None = None,
+    ) -> OAuth1RequestToken:
+        params: dict[str, str] = {"app_id": app_id, "app_secret": app_secret}
+        if callback_uri is not None:
+            params["callbackuri"] = callback_uri
+        return _parse_oauth1_request_token(await self._get_json("request_token", params))
+
+    def build_authorization_url(
+        self,
+        *,
+        token: str,
+        callback_uri: str | None = None,
+        no_register: bool = False,
+    ) -> str:
+        params: dict[str, str] = {"token": token}
+        if callback_uri is not None:
+            params["callbackuri"] = callback_uri
+        if no_register:
+            params["no_register"] = "y"
+        return str(self._client.base_url.join("authorize").copy_with(params=params))
+
+    async def access_token(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        token: str,
+        pin: str,
+    ) -> OAuth1AccessToken:
+        return _parse_oauth1_access_token(
+            await self._get_json(
+                "access_token",
+                {
+                    "app_id": app_id,
+                    "app_secret": app_secret,
+                    "token": token,
+                    "pin": pin,
+                },
+            )
+        )
+
+    async def access_token_by_onetime(
+        self,
+        *,
+        app_id: str,
+        app_secret: str,
+        onetime_pin: str,
+    ) -> OAuth1AccessToken:
+        return _parse_oauth1_access_token(
+            await self._get_json(
+                "access_token_by_onetime",
+                {
+                    "app_id": app_id,
+                    "app_secret": app_secret,
+                    "onetime_pin": onetime_pin,
+                },
+            )
+        )
+
+    async def _get_json(self, path: str, params: RequestData) -> JsonObject:
+        try:
+            response = await self._client.get(
+                path,
+                params={key: value for key, value in params.items()},
+            )
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+        return _decode_oauth_json(response)
+
+
 def create_pkce_challenge(byte_length: int = 64) -> PKCEChallenge:
     verifier = secrets.token_urlsafe(byte_length)
     digest = hashlib.sha256(verifier.encode()).digest()
@@ -235,6 +434,34 @@ def build_authorization_url(
         params["code_challenge"] = challenge.challenge
         params["code_challenge_method"] = challenge.method
     return f"{authorization_endpoint}?{urlencode(params)}"
+
+
+def get_oauth2_metadata(
+    *,
+    metadata_url: str = "https://whooing.com/.well-known/oauth-authorization-server",
+    timeout: float | httpx.Timeout = 10.0,
+    transport: httpx.BaseTransport | None = None,
+) -> JsonObject:
+    with httpx.Client(timeout=timeout, transport=transport) as client:
+        try:
+            response = client.get(metadata_url)
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+    return _decode_oauth_json(response)
+
+
+async def async_get_oauth2_metadata(
+    *,
+    metadata_url: str = "https://whooing.com/.well-known/oauth-authorization-server",
+    timeout: float | httpx.Timeout = 10.0,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> JsonObject:
+    async with httpx.AsyncClient(timeout=timeout, transport=transport) as client:
+        try:
+            response = await client.get(metadata_url)
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+    return _decode_oauth_json(response)
 
 
 def _decode_oauth_json(response: httpx.Response) -> JsonObject:
@@ -275,6 +502,29 @@ def _parse_oauth2_token(payload: JsonObject) -> OAuth2Token:
         expires_in=_optional_int(payload.get("expires_in")),
         refresh_token=_optional_str(payload.get("refresh_token")),
         scope=_optional_str(payload.get("scope")),
+        raw=payload,
+    )
+
+
+def _parse_oauth1_request_token(payload: JsonObject) -> OAuth1RequestToken:
+    token = _optional_str(payload.get("token"))
+    if token is None:
+        raise WhooingOAuthError("invalid_token_response", "token is required")
+    return OAuth1RequestToken(token=token, raw=payload)
+
+
+def _parse_oauth1_access_token(payload: JsonObject) -> OAuth1AccessToken:
+    token = _optional_str(payload.get("token"))
+    token_secret = _optional_str(payload.get("token_secret"))
+    if token is None or token_secret is None:
+        raise WhooingOAuthError(
+            "invalid_token_response",
+            "token and token_secret are required",
+        )
+    return OAuth1AccessToken(
+        token=token,
+        token_secret=token_secret,
+        user_id=_optional_int(payload.get("user_id")),
         raw=payload,
     )
 

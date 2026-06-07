@@ -189,6 +189,30 @@ class EntriesResource(Generic[ResponseT]):
     def analytics(self, name: str, *, section_id: str, **params: RequestValue) -> ResponseT:
         return self._client.get(f"entries/{name}.json", params={"section_id": section_id, **params})
 
+    def flow_of_account(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("flow_of_account", section_id=section_id, **params)
+
+    def flow_of_account_id(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("flow_of_account_id", section_id=section_id, **params)
+
+    def changes_of_account_id(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("changes_of_account_id", section_id=section_id, **params)
+
+    def changes_of_client(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("changes_of_client", section_id=section_id, **params)
+
+    def changes_of_item(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("changes_of_item", section_id=section_id, **params)
+
+    def account_ids_of_account(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("account_ids_of_account", section_id=section_id, **params)
+
+    def clients_of_account_id(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("clients_of_account_id", section_id=section_id, **params)
+
+    def items_of_account_id(self, *, section_id: str, **params: RequestValue) -> ResponseT:
+        return self.analytics("items_of_account_id", section_id=section_id, **params)
+
     def parse_outside(self, *, section_id: str, rows: str) -> ResponseT:
         return self._client.post(
             "entries/outside.json",
@@ -348,11 +372,7 @@ class ExtrasResource(Generic[ResponseT]):
         )
 
     def monthly_items(self, item_id: str | None = None, **params: RequestValue) -> ResponseT:
-        path = (
-            "monthly_items/slot1.json"
-            if item_id is None
-            else f"monthly_items/slot1/{item_id}.json"
-        )
+        path = "monthly_items.json" if item_id is None else f"monthly_items/slot1/{item_id}.json"
         return self._client.get(path, params=params)
 
     def create_monthly_item(self, **fields: RequestValue) -> ResponseT:
