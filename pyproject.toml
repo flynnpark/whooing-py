@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whooing-py"
+version = "0.1.0"
+description = "Python client library for the Whooing Developer API."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "flynn" }
+]
+dependencies = [
+  "httpx>=0.28,<1",
+]
+
+[project.urls]
+Documentation = "https://whooing.com/api/docs"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "ruff>=0.9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/whooing"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "A",
+  "B",
+  "E",
+  "F",
+  "I",
+  "N",
+  "UP",
+  "W",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["whooing"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
