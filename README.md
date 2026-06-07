@@ -158,6 +158,29 @@ with WhooingClient(api_key="발급된_인증키") as client:
 `response.parse(ResponseModel)`로 검증할 수 있습니다. 이 기능은 `pydantic` extra를
 설치한 사용자에게만 제공되며, 기본 설치 사용자에게 Pydantic 의존성을 강제하지 않습니다.
 
+요청 모델 사용:
+
+```python
+from whooing import EntryInput, WhooingClient
+
+entry = EntryInput(
+    entry_date=20260607,
+    left_account="expenses",
+    left_account_id="x1",
+    right_account="assets",
+    right_account_id="x2",
+    item="커피",
+    money=5000,
+)
+
+with WhooingClient(api_key="발급된_인증키") as client:
+    client.entries.create_entry(section_id="s123", entry=entry)
+```
+
+파라미터가 많은 API는 `AccountInput`, `BudgetInput`, `PostItInput`, `MessageInput` 같은
+dataclass 요청 모델을 제공합니다. 문서에 없는 필드나 새로 추가된 필드는 기존
+`**fields` 방식 또는 요청 모델의 `extra_fields`로 전달할 수 있습니다.
+
 ## 리소스 구성
 
 - `client.users`: 사용자 정보, 사용자 로그, 포인트 로그
