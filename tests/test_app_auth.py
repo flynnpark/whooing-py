@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 
 import httpx
+import pytest
 
-from whooing import AppAuthClient, AsyncAppAuthClient
+from whooing import AppAuthClient, AsyncAppAuthClient, WhooingOAuthError
 from whooing.auth import async_get_oauth2_metadata, get_oauth2_metadata
 
 
@@ -83,6 +84,24 @@ def test_app_auth_onetime_pin() -> None:
     )
 
     assert token.token == "access-token"
+
+
+def test_app_auth_error_code_raises_oauth_error() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"code": 405, "message": "invalid pin"})
+
+    client = AppAuthClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(WhooingOAuthError) as exc_info:
+        client.access_token(
+            app_id="app",
+            app_secret="secret",
+            token="request-token",
+            pin="000000",
+        )
+
+    assert exc_info.value.error == "405"
+    assert exc_info.value.description == "invalid pin"
 
 
 def test_oauth2_metadata_helper() -> None:

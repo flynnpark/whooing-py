@@ -478,6 +478,13 @@ def _decode_oauth_json(response: httpx.Response) -> JsonObject:
     if error is not None:
         raise WhooingOAuthError(error, _optional_str(payload.get("error_description")))
 
+    code = _optional_int(payload.get("code"))
+    if code is not None and code not in {200, 204}:
+        raise WhooingOAuthError(
+            str(code),
+            _optional_str(payload.get("message")) or "Whooing app auth response failed",
+        )
+
     if response.status_code >= 400:
         raise WhooingResponseError(
             f"Whooing OAuth response failed with status {response.status_code}.",
