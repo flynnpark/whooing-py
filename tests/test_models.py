@@ -7,10 +7,15 @@ import httpx
 from whooing import (
     AccountInput,
     BasicTotalBudgetInput,
+    BbsCommentInput,
+    BbsPostInput,
     BudgetInput,
     EntryInput,
+    FrequentItemInput,
     MessageInput,
+    MonthlyItemInput,
     PostItInput,
+    SectionInput,
     WhooingClient,
 )
 
@@ -209,3 +214,98 @@ def test_extras_resource_accepts_message_input() -> None:
     )
 
     assert response.results == {"ok": True}
+
+
+def test_section_input_and_resource_helper() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/sections.json"
+        body = parse_qs(request.content.decode())
+        assert body["title"] == ["개인"]
+        assert body["currency"] == ["KRW"]
+        return httpx.Response(200, json={"code": 200, "results": {"section_id": "s1"}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    response = client.sections.create_section(SectionInput(title="개인", currency="KRW"))
+
+    assert response.results == {"section_id": "s1"}
+
+
+def test_frequent_and_monthly_item_inputs() -> None:
+    frequent = FrequentItemInput(
+        section_id="s1",
+        item="커피",
+        money=5000,
+        left_account="expenses",
+        left_account_id="x1",
+        right_account="assets",
+        right_account_id="x2",
+        extra_fields={"custom": "value"},
+    )
+    monthly = MonthlyItemInput(
+        section_id="s1",
+        item="월세",
+        money=500000,
+        start_date=202601,
+        end_date=202612,
+    )
+
+    assert frequent.to_request_data()["custom"] == "value"
+    assert frequent.to_request_data()["l_account"] == "expenses"
+    assert monthly.to_request_data()["start_date"] == 202601
+
+
+def test_extras_resource_accepts_frequent_and_monthly_item_inputs() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        body = parse_qs(request.content.decode())
+        assert body["section_id"] == ["s1"]
+        assert body["item"]
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    client.extras.create_frequent_item_from(
+        "slot1",
+        FrequentItemInput(section_id="s1", item="커피"),
+    )
+    client.extras.create_monthly_item_from(MonthlyItemInput(section_id="s1", item="월세"))
+
+    assert calls == ["/api/frequent_items/slot1.json", "/api/monthly_items/slot1.json"]
+
+
+def test_bbs_inputs_and_resource_helpers() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        body = parse_qs(request.content.decode())
+        assert body
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    client.extras.create_bbs_from(
+        "notice",
+        BbsPostInput(title="제목", contents="본문", extra_fields={"tag": "api"}),
+    )
+    client.extras.create_bbs_comment_from(
+        "notice",
+        1,
+        BbsCommentInput(contents="댓글"),
+    )
+    client.extras.create_bbs_reply_from(
+        "notice",
+        1,
+        "c1",
+        BbsCommentInput(contents="답글"),
+    )
+
+    assert calls == [
+        "/api/bbs/notice.json",
+        "/api/bbs/notice/1.json",
+        "/api/bbs/notice/1/c1.json",
+    ]

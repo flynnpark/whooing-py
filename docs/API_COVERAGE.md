@@ -28,6 +28,7 @@
 | --- | --- | --- |
 | 사용자 | 완료 | `client.users` |
 | 섹션 | 완료 | `client.sections` |
+| 섹션 요청 모델 | 부분 | `SectionInput` |
 | 계정 | 완료 | `client.accounts` |
 | 계정 요청 모델 | 부분 | `AccountInput`, 생성/수정 지원 |
 | 거래 CRUD | 완료 | `client.entries` |
@@ -41,6 +42,8 @@
 | 카드/입출금/캘린더 | 완료 | `client.extras` |
 | 포스트잇/쪽지/게시판 | 완료 | `client.extras` |
 | 포스트잇/쪽지 요청 모델 | 부분 | `PostItInput`, `MessageInput` |
+| 반복 입력 요청 모델 | 부분 | `FrequentItemInput`, `MonthlyItemInput` |
+| 게시판 요청 모델 | 부분 | `BbsPostInput`, `BbsCommentInput` |
 | 업로드 준비/완료 | 완료 | `prepare_upload`, `complete_upload` |
 | 알림 | 완료 | `notifications`, `mark_notifications_read` |
 | 직접 경로 호출 | 완료 | `client.request`, `async_client.request` |
@@ -58,6 +61,7 @@
 ## 남은 작업
 
 - 문서 예제와 실제 API 응답 샘플을 기준으로 자주 쓰는 응답 모델을 추가합니다.
-- 게시판처럼 입력 필드가 반복되는 보조 API에 dataclass 요청 모델을 추가합니다.
+- 실제 API 응답 샘플을 기준으로 요청 모델 필드명을 추가 검증하고, 필요한 경우 alias를
+  보강합니다.
 - 실제 계정이 필요한 통합 테스트는 환경 변수 기반으로 별도 분리합니다.
 - rate limit 자동 대기나 재시도 정책은 기본 동작에 넣지 않고 선택 가능한 옵션으로 설계합니다.

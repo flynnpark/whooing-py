@@ -28,10 +28,15 @@ from whooing.exceptions import (
 from whooing.models import (
     AccountInput,
     BasicTotalBudgetInput,
+    BbsCommentInput,
+    BbsPostInput,
     BudgetInput,
     EntryInput,
+    FrequentItemInput,
     MessageInput,
+    MonthlyItemInput,
     PostItInput,
+    SectionInput,
 )
 from whooing.response import ApiResponse
 
@@ -47,10 +52,15 @@ __all__ = [
     "BearerTokenAuth",
     "AccountInput",
     "BasicTotalBudgetInput",
+    "BbsCommentInput",
+    "BbsPostInput",
     "BudgetInput",
     "EntryInput",
+    "FrequentItemInput",
     "MessageInput",
+    "MonthlyItemInput",
     "PostItInput",
+    "SectionInput",
     "OAuth1AccessToken",
     "OAuth1RequestToken",
     "OAuth1aAuth",

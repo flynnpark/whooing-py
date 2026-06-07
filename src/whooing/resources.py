@@ -7,10 +7,15 @@ from typing import Generic, Protocol, TypeVar
 from whooing.models import (
     AccountInput,
     BasicTotalBudgetInput,
+    BbsCommentInput,
+    BbsPostInput,
     BudgetInput,
     EntryInput,
+    FrequentItemInput,
     MessageInput,
+    MonthlyItemInput,
     PostItInput,
+    SectionInput,
 )
 from whooing.types import JsonValue, RequestData, RequestValue
 
@@ -57,8 +62,14 @@ class SectionsResource(Generic[ResponseT]):
     def create(self, **fields: RequestValue) -> ResponseT:
         return self._client.post("sections.json", data=fields)
 
+    def create_section(self, section: SectionInput) -> ResponseT:
+        return self.create(**section.to_request_data())
+
     def update(self, section_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.put(f"sections/{section_id}.json", data=fields)
+
+    def update_section(self, section_id: str, section: SectionInput) -> ResponseT:
+        return self.update(section_id, **section.to_request_data())
 
     def delete(self, section_ids: str | Sequence[str]) -> ResponseT:
         return self._client.delete(f"sections/{_comma_join(section_ids)}.json")
@@ -411,8 +422,19 @@ class ExtrasResource(Generic[ResponseT]):
     def create_frequent_item(self, slot: str, **fields: RequestValue) -> ResponseT:
         return self._client.post(f"frequent_items/{slot}.json", data=fields)
 
+    def create_frequent_item_from(self, slot: str, item: FrequentItemInput) -> ResponseT:
+        return self.create_frequent_item(slot, **item.to_request_data())
+
     def update_frequent_item(self, slot: str, item_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.put(f"frequent_items/{slot}/{item_id}.json", data=fields)
+
+    def update_frequent_item_from(
+        self,
+        slot: str,
+        item_id: str,
+        item: FrequentItemInput,
+    ) -> ResponseT:
+        return self.update_frequent_item(slot, item_id, **item.to_request_data())
 
     def delete_frequent_item(
         self,
@@ -443,8 +465,14 @@ class ExtrasResource(Generic[ResponseT]):
     def create_monthly_item(self, **fields: RequestValue) -> ResponseT:
         return self._client.post("monthly_items/slot1.json", data=fields)
 
+    def create_monthly_item_from(self, item: MonthlyItemInput) -> ResponseT:
+        return self.create_monthly_item(**item.to_request_data())
+
     def update_monthly_item(self, item_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.put(f"monthly_items/slot1/{item_id}.json", data=fields)
+
+    def update_monthly_item_from(self, item_id: str, item: MonthlyItemInput) -> ResponseT:
+        return self.update_monthly_item(item_id, **item.to_request_data())
 
     def delete_monthly_item(self, item_ids: str | Sequence[str], section_id: str) -> ResponseT:
         return self._client.delete(f"monthly_items/slot1/{_comma_join(item_ids)}/{section_id}.json")
@@ -538,8 +566,19 @@ class ExtrasResource(Generic[ResponseT]):
     def create_bbs(self, category: str, **fields: RequestValue) -> ResponseT:
         return self._client.post(f"bbs/{category}.json", data=fields)
 
+    def create_bbs_from(self, category: str, post: BbsPostInput) -> ResponseT:
+        return self.create_bbs(category, **post.to_request_data())
+
     def update_bbs(self, category: str, bbs_id: int | str, **fields: RequestValue) -> ResponseT:
         return self._client.put(f"bbs/{category}/{bbs_id}.json", data=fields)
+
+    def update_bbs_from(
+        self,
+        category: str,
+        bbs_id: int | str,
+        post: BbsPostInput,
+    ) -> ResponseT:
+        return self.update_bbs(category, bbs_id, **post.to_request_data())
 
     def delete_bbs(self, category: str, bbs_ids: int | str | Sequence[int | str]) -> ResponseT:
         return self._client.delete(f"bbs/{category}/{_comma_join(bbs_ids)}.json")
@@ -552,6 +591,14 @@ class ExtrasResource(Generic[ResponseT]):
     ) -> ResponseT:
         return self._client.post(f"bbs/{category}/{bbs_id}.json", data=fields)
 
+    def create_bbs_comment_from(
+        self,
+        category: str,
+        bbs_id: int | str,
+        comment: BbsCommentInput,
+    ) -> ResponseT:
+        return self.create_bbs_comment(category, bbs_id, **comment.to_request_data())
+
     def update_bbs_comment(
         self,
         category: str,
@@ -560,6 +607,15 @@ class ExtrasResource(Generic[ResponseT]):
         **fields: RequestValue,
     ) -> ResponseT:
         return self._client.put(f"bbs/{category}/{bbs_id}/{comment_id}.json", data=fields)
+
+    def update_bbs_comment_from(
+        self,
+        category: str,
+        bbs_id: int | str,
+        comment_id: str,
+        comment: BbsCommentInput,
+    ) -> ResponseT:
+        return self.update_bbs_comment(category, bbs_id, comment_id, **comment.to_request_data())
 
     def delete_bbs_comment(
         self,
@@ -577,6 +633,15 @@ class ExtrasResource(Generic[ResponseT]):
         **fields: RequestValue,
     ) -> ResponseT:
         return self._client.post(f"bbs/{category}/{bbs_id}/{comment_id}.json", data=fields)
+
+    def create_bbs_reply_from(
+        self,
+        category: str,
+        bbs_id: int | str,
+        comment_id: str,
+        reply: BbsCommentInput,
+    ) -> ResponseT:
+        return self.create_bbs_reply(category, bbs_id, comment_id, **reply.to_request_data())
 
     def delete_bbs_reply(
         self,

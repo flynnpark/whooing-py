@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
 from whooing.types import JsonObject, RequestData, RequestValue
 
 AccountType = Literal["assets", "liabilities", "capital", "expenses", "income"]
+
+
+@dataclass(frozen=True, slots=True)
+class SectionInput:
+    title: str
+    currency: str | None = None
+    memo: str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {"title": self.title}
+        if self.currency is not None:
+            data["currency"] = self.currency
+        if self.memo is not None:
+            data["memo"] = self.memo
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +105,68 @@ class PostItInput:
 
 
 @dataclass(frozen=True, slots=True)
+class FrequentItemInput:
+    section_id: str
+    item: str
+    money: int | float | None = None
+    memo: str | None = None
+    left_account: AccountType | None = None
+    left_account_id: str | None = None
+    right_account: AccountType | None = None
+    right_account_id: str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {
+            "section_id": self.section_id,
+            "item": self.item,
+        }
+        if self.money is not None:
+            data["money"] = self.money
+        if self.memo is not None:
+            data["memo"] = self.memo
+        if self.left_account is not None:
+            data["l_account"] = self.left_account
+        if self.left_account_id is not None:
+            data["l_account_id"] = self.left_account_id
+        if self.right_account is not None:
+            data["r_account"] = self.right_account
+        if self.right_account_id is not None:
+            data["r_account_id"] = self.right_account_id
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyItemInput:
+    section_id: str
+    item: str
+    money: int | float | None = None
+    memo: str | None = None
+    start_date: int | str | None = None
+    end_date: int | str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {
+            "section_id": self.section_id,
+            "item": self.item,
+        }
+        if self.money is not None:
+            data["money"] = self.money
+        if self.memo is not None:
+            data["memo"] = self.memo
+        if self.start_date is not None:
+            data["start_date"] = self.start_date
+        if self.end_date is not None:
+            data["end_date"] = self.end_date
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
+
+
+@dataclass(frozen=True, slots=True)
 class MessageInput:
     opponent_user_ids: str | list[int | str]
     message: str
@@ -97,6 +178,31 @@ class MessageInput:
             else ",".join(str(user_id) for user_id in self.opponent_user_ids)
         )
         return {"opponent_user_ids": opponent_user_ids, "message": self.message}
+
+
+@dataclass(frozen=True, slots=True)
+class BbsPostInput:
+    title: str
+    contents: str
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {"title": self.title, "contents": self.contents}
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
+
+
+@dataclass(frozen=True, slots=True)
+class BbsCommentInput:
+    contents: str
+    extra_fields: Mapping[str, RequestValue] | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {"contents": self.contents}
+        if self.extra_fields is not None:
+            data.update(self.extra_fields)
+        return data
 
 
 @dataclass(frozen=True, slots=True)
