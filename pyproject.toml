@@ -59,3 +59,6 @@ packages = ["whooing"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "integration: real Whooing API tests that require credentials",
+]

@@ -41,6 +41,12 @@ uv run mypy src
 uv run pytest
 ```
 
+실제 후잉 API 통합 테스트는 환경 변수가 있을 때만 실행됩니다.
+
+```sh
+WHOOING_API_KEY=... WHOOING_SECTION_ID=... uv run pytest -m integration
+```
+
 ## 사용 예시
 
 API key 기반 동기 호출:
