@@ -6,9 +6,13 @@ import secrets
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import cast
 from urllib.parse import urlencode
 
-from whooing.types import Headers
+import httpx
+
+from whooing.exceptions import WhooingOAuthError, WhooingResponseError, WhooingTransportError
+from whooing.types import Headers, JsonObject, JsonValue, RequestData
 
 
 class Auth:
@@ -62,6 +66,145 @@ class PKCEChallenge:
     method: str = "S256"
 
 
+@dataclass(frozen=True, slots=True)
+class OAuth2Token:
+    access_token: str
+    token_type: str
+    expires_in: int | None
+    refresh_token: str | None
+    scope: str | None
+    raw: JsonObject
+
+
+class OAuth2TokenClient:
+    def __init__(
+        self,
+        *,
+        token_endpoint: str = "https://whooing.com/oauth2/token",
+        revoke_endpoint: str = "https://whooing.com/oauth2/revoke",
+        timeout: float | httpx.Timeout = 10.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        self._token_endpoint = token_endpoint
+        self._revoke_endpoint = revoke_endpoint
+        self._client = httpx.Client(timeout=timeout, transport=transport)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> OAuth2TokenClient:
+        return self
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        self.close()
+
+    def exchange_code(
+        self,
+        *,
+        client_id: str,
+        code: str,
+        redirect_uri: str,
+        code_verifier: str | None = None,
+    ) -> OAuth2Token:
+        data: dict[str, str] = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+        if code_verifier is not None:
+            data["code_verifier"] = code_verifier
+        return self._post_token(data)
+
+    def refresh(self, *, client_id: str, refresh_token: str) -> OAuth2Token:
+        return self._post_token(
+            {
+                "grant_type": "refresh_token",
+                "client_id": client_id,
+                "refresh_token": refresh_token,
+            }
+        )
+
+    def revoke(self, token: str) -> JsonObject:
+        return self._post_json(self._revoke_endpoint, {"token": token})
+
+    def _post_token(self, data: RequestData) -> OAuth2Token:
+        return _parse_oauth2_token(self._post_json(self._token_endpoint, data))
+
+    def _post_json(self, url: str, data: RequestData) -> JsonObject:
+        try:
+            response = self._client.post(url, data={key: value for key, value in data.items()})
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+        return _decode_oauth_json(response)
+
+
+class AsyncOAuth2TokenClient:
+    def __init__(
+        self,
+        *,
+        token_endpoint: str = "https://whooing.com/oauth2/token",
+        revoke_endpoint: str = "https://whooing.com/oauth2/revoke",
+        timeout: float | httpx.Timeout = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._token_endpoint = token_endpoint
+        self._revoke_endpoint = revoke_endpoint
+        self._client = httpx.AsyncClient(timeout=timeout, transport=transport)
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self) -> AsyncOAuth2TokenClient:
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        await self.close()
+
+    async def exchange_code(
+        self,
+        *,
+        client_id: str,
+        code: str,
+        redirect_uri: str,
+        code_verifier: str | None = None,
+    ) -> OAuth2Token:
+        data: dict[str, str] = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+        if code_verifier is not None:
+            data["code_verifier"] = code_verifier
+        return await self._post_token(data)
+
+    async def refresh(self, *, client_id: str, refresh_token: str) -> OAuth2Token:
+        return await self._post_token(
+            {
+                "grant_type": "refresh_token",
+                "client_id": client_id,
+                "refresh_token": refresh_token,
+            }
+        )
+
+    async def revoke(self, token: str) -> JsonObject:
+        return await self._post_json(self._revoke_endpoint, {"token": token})
+
+    async def _post_token(self, data: RequestData) -> OAuth2Token:
+        return _parse_oauth2_token(await self._post_json(self._token_endpoint, data))
+
+    async def _post_json(self, url: str, data: RequestData) -> JsonObject:
+        try:
+            response = await self._client.post(
+                url,
+                data={key: value for key, value in data.items()},
+            )
+        except httpx.TransportError as exc:
+            raise WhooingTransportError(str(exc)) from exc
+        return _decode_oauth_json(response)
+
+
 def create_pkce_challenge(byte_length: int = 64) -> PKCEChallenge:
     verifier = secrets.token_urlsafe(byte_length)
     digest = hashlib.sha256(verifier.encode()).digest()
@@ -92,3 +235,59 @@ def build_authorization_url(
         params["code_challenge"] = challenge.challenge
         params["code_challenge_method"] = challenge.method
     return f"{authorization_endpoint}?{urlencode(params)}"
+
+
+def _decode_oauth_json(response: httpx.Response) -> JsonObject:
+    try:
+        payload = cast(JsonObject, response.json())
+    except ValueError as exc:
+        raise WhooingResponseError(
+            "Whooing OAuth response is not valid JSON.",
+            status_code=response.status_code,
+            body=response.text,
+        ) from exc
+
+    error = _optional_str(payload.get("error"))
+    if error is not None:
+        raise WhooingOAuthError(error, _optional_str(payload.get("error_description")))
+
+    if response.status_code >= 400:
+        raise WhooingResponseError(
+            f"Whooing OAuth response failed with status {response.status_code}.",
+            status_code=response.status_code,
+            body=response.text,
+        )
+
+    return payload
+
+
+def _parse_oauth2_token(payload: JsonObject) -> OAuth2Token:
+    access_token = _optional_str(payload.get("access_token"))
+    token_type = _optional_str(payload.get("token_type"))
+    if access_token is None or token_type is None:
+        raise WhooingOAuthError(
+            "invalid_token_response",
+            "access_token and token_type are required",
+        )
+    return OAuth2Token(
+        access_token=access_token,
+        token_type=token_type,
+        expires_in=_optional_int(payload.get("expires_in")),
+        refresh_token=_optional_str(payload.get("refresh_token")),
+        scope=_optional_str(payload.get("scope")),
+        raw=payload,
+    )
+
+
+def _optional_str(value: JsonValue | None) -> str | None:
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _optional_int(value: JsonValue | None) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None

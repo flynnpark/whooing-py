@@ -39,5 +39,13 @@ class WhooingAuthError(WhooingAPIError):
     """Raised for authentication and authorization failures."""
 
 
+class WhooingOAuthError(WhooingError):
+    def __init__(self, error: str, description: str | None = None) -> None:
+        message = error if description is None else f"{error}: {description}"
+        super().__init__(message)
+        self.error = error
+        self.description = description
+
+
 class WhooingRateLimitError(WhooingAPIError):
     """Raised when the API quota or short-term request limit is exceeded."""
