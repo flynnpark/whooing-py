@@ -25,7 +25,14 @@ from whooing.exceptions import (
     WhooingResponseError,
     WhooingTransportError,
 )
-from whooing.models import AccountInput, BasicTotalBudgetInput, BudgetInput, EntryInput
+from whooing.models import (
+    AccountInput,
+    BasicTotalBudgetInput,
+    BudgetInput,
+    EntryInput,
+    MessageInput,
+    PostItInput,
+)
 from whooing.response import ApiResponse
 
 __version__ = "0.1.0"
@@ -42,6 +49,8 @@ __all__ = [
     "BasicTotalBudgetInput",
     "BudgetInput",
     "EntryInput",
+    "MessageInput",
+    "PostItInput",
     "OAuth1AccessToken",
     "OAuth1RequestToken",
     "OAuth1aAuth",

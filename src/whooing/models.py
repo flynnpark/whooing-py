@@ -65,6 +65,41 @@ class BasicTotalBudgetInput:
 
 
 @dataclass(frozen=True, slots=True)
+class PostItInput:
+    section_id: str
+    title: str
+    contents: str
+    position: str | None = None
+    color: str | None = None
+
+    def to_request_data(self) -> RequestData:
+        data: dict[str, RequestValue] = {
+            "section_id": self.section_id,
+            "title": self.title,
+            "contents": self.contents,
+        }
+        if self.position is not None:
+            data["position"] = self.position
+        if self.color is not None:
+            data["color"] = self.color
+        return data
+
+
+@dataclass(frozen=True, slots=True)
+class MessageInput:
+    opponent_user_ids: str | list[int | str]
+    message: str
+
+    def to_request_data(self) -> RequestData:
+        opponent_user_ids = (
+            self.opponent_user_ids
+            if isinstance(self.opponent_user_ids, str)
+            else ",".join(str(user_id) for user_id in self.opponent_user_ids)
+        )
+        return {"opponent_user_ids": opponent_user_ids, "message": self.message}
+
+
+@dataclass(frozen=True, slots=True)
 class EntryInput:
     entry_date: int | str
     left_account: AccountType

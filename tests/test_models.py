@@ -4,7 +4,15 @@ from urllib.parse import parse_qs
 
 import httpx
 
-from whooing import AccountInput, BasicTotalBudgetInput, BudgetInput, EntryInput, WhooingClient
+from whooing import (
+    AccountInput,
+    BasicTotalBudgetInput,
+    BudgetInput,
+    EntryInput,
+    MessageInput,
+    PostItInput,
+    WhooingClient,
+)
 
 
 def test_entry_input_serializes_documented_fields() -> None:
@@ -134,6 +142,70 @@ def test_budget_resource_accepts_budget_input() -> None:
         "expenses",
         section_id="s1",
         budget=BudgetInput(target_ym=202606, amounts_by_account_id={"x1": 10000}),
+    )
+
+    assert response.results == {"ok": True}
+
+
+def test_post_it_input_serializes_optional_fields() -> None:
+    post_it = PostItInput(
+        section_id="s1",
+        title="메모",
+        contents="내용",
+        position="10,20",
+        color="yellow",
+    )
+
+    assert post_it.to_request_data() == {
+        "section_id": "s1",
+        "title": "메모",
+        "contents": "내용",
+        "position": "10,20",
+        "color": "yellow",
+    }
+
+
+def test_extras_resource_accepts_post_it_input() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/post_it.json"
+        body = parse_qs(request.content.decode())
+        assert body["section_id"] == ["s1"]
+        assert body["title"] == ["메모"]
+        assert body["contents"] == ["내용"]
+        return httpx.Response(200, json={"code": 200, "results": {"post_it_id": 1}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    response = client.extras.create_post_it_from(
+        PostItInput(section_id="s1", title="메모", contents="내용")
+    )
+
+    assert response.results == {"post_it_id": 1}
+
+
+def test_message_input_serializes_multiple_user_ids() -> None:
+    message = MessageInput(opponent_user_ids=[1, "2"], message="안녕하세요")
+
+    assert message.to_request_data() == {
+        "opponent_user_ids": "1,2",
+        "message": "안녕하세요",
+    }
+
+
+def test_extras_resource_accepts_message_input() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/messages.json"
+        body = parse_qs(request.content.decode())
+        assert body["opponent_user_ids"] == ["1,2"]
+        assert body["message"] == ["안녕하세요"]
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    response = client.extras.send_message_from(
+        MessageInput(opponent_user_ids=[1, "2"], message="안녕하세요")
     )
 
     assert response.results == {"ok": True}

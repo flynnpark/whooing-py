@@ -4,7 +4,14 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Generic, Protocol, TypeVar
 
-from whooing.models import AccountInput, BasicTotalBudgetInput, BudgetInput, EntryInput
+from whooing.models import (
+    AccountInput,
+    BasicTotalBudgetInput,
+    BudgetInput,
+    EntryInput,
+    MessageInput,
+    PostItInput,
+)
 from whooing.types import JsonValue, RequestData, RequestValue
 
 ResponseT = TypeVar("ResponseT", covariant=True)
@@ -473,8 +480,14 @@ class ExtrasResource(Generic[ResponseT]):
     def create_post_it(self, **fields: RequestValue) -> ResponseT:
         return self._client.post("post_it.json", data=fields)
 
+    def create_post_it_from(self, post_it: PostItInput) -> ResponseT:
+        return self.create_post_it(**post_it.to_request_data())
+
     def update_post_it(self, post_it_id: int | str, **fields: RequestValue) -> ResponseT:
         return self._client.put(f"post_it/{post_it_id}.json", data=fields)
+
+    def update_post_it_from(self, post_it_id: int | str, post_it: PostItInput) -> ResponseT:
+        return self.update_post_it(post_it_id, **post_it.to_request_data())
 
     def delete_post_it(self, section_id: str, post_it_ids: str | Sequence[int | str]) -> ResponseT:
         return self._client.delete(f"post_it/{section_id}/{_comma_join(post_it_ids)}.json")
@@ -502,6 +515,9 @@ class ExtrasResource(Generic[ResponseT]):
                 **fields,
             },
         )
+
+    def send_message_from(self, message: MessageInput) -> ResponseT:
+        return self._client.post("messages.json", data=message.to_request_data())
 
     def delete_messages(self, opponent_user_id: int | str) -> ResponseT:
         return self._client.delete(f"messages/{opponent_user_id}.json")
