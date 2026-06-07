@@ -25,7 +25,7 @@ from whooing.exceptions import (
     WhooingResponseError,
     WhooingTransportError,
 )
-from whooing.models import EntryInput
+from whooing.models import AccountInput, BasicTotalBudgetInput, BudgetInput, EntryInput
 from whooing.response import ApiResponse
 
 __version__ = "0.1.0"
@@ -38,6 +38,9 @@ __all__ = [
     "AsyncWhooingClient",
     "AsyncOAuth2TokenClient",
     "BearerTokenAuth",
+    "AccountInput",
+    "BasicTotalBudgetInput",
+    "BudgetInput",
     "EntryInput",
     "OAuth1AccessToken",
     "OAuth1RequestToken",

@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Generic, Protocol, TypeVar
 
-from whooing.models import EntryInput
+from whooing.models import AccountInput, BasicTotalBudgetInput, BudgetInput, EntryInput
 from whooing.types import JsonValue, RequestData, RequestValue
 
 ResponseT = TypeVar("ResponseT", covariant=True)
@@ -103,6 +103,15 @@ class AccountsResource(Generic[ResponseT]):
             data={"section_id": section_id, **fields},
         )
 
+    def create_account(
+        self,
+        account: str,
+        *,
+        section_id: str,
+        account_input: AccountInput,
+    ) -> ResponseT:
+        return self.create(account, section_id=section_id, **account_input.to_request_data())
+
     def update(
         self,
         account: str,
@@ -114,6 +123,21 @@ class AccountsResource(Generic[ResponseT]):
         return self._client.put(
             f"accounts/{account}/{account_id}.json",
             data={"section_id": section_id, **fields},
+        )
+
+    def update_account(
+        self,
+        account: str,
+        account_id: str,
+        *,
+        section_id: str,
+        account_input: AccountInput,
+    ) -> ResponseT:
+        return self.update(
+            account,
+            account_id,
+            section_id=section_id,
+            **account_input.to_request_data(),
         )
 
     def delete(self, account: str, account_id: str, *, section_id: str) -> ResponseT:
@@ -257,6 +281,18 @@ class BudgetResource(Generic[ResponseT]):
             data={"section_id": section_id, "target_ym": target_ym, **budget_data},
         )
 
+    def update_budget(
+        self,
+        account: str,
+        *,
+        section_id: str,
+        budget: BudgetInput,
+    ) -> ResponseT:
+        return self._client.put(
+            f"budget/{account}.json",
+            data={"section_id": section_id, **budget.to_request_data()},
+        )
+
     def update_basic_total(
         self,
         account: str,
@@ -277,6 +313,18 @@ class BudgetResource(Generic[ResponseT]):
                 "end_date": end_date,
                 **month_data,
             },
+        )
+
+    def update_basic_total_budget(
+        self,
+        account: str,
+        *,
+        section_id: str,
+        budget: BasicTotalBudgetInput,
+    ) -> ResponseT:
+        return self._client.put(
+            f"budget/{account}/basic_total.json",
+            data={"section_id": section_id, **budget.to_request_data()},
         )
 
     def delete(

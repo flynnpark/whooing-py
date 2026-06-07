@@ -29,11 +29,13 @@
 | 사용자 | 완료 | `client.users` |
 | 섹션 | 완료 | `client.sections` |
 | 계정 | 완료 | `client.accounts` |
+| 계정 요청 모델 | 부분 | `AccountInput`, 생성/수정 지원 |
 | 거래 CRUD | 완료 | `client.entries` |
 | 거래 입력 요청 모델 | 부분 | `EntryInput`, 단건/다건 입력 지원 |
 | 거래 분석성 API | 완료 | `flow_of_account`, `changes_of_item` 등 명시 메서드 |
 | 외부 거래 입력 | 완료 | `parse_outside`, `report_outside_source` |
 | 예산 | 완료 | `client.budgets` |
+| 예산 요청 모델 | 부분 | `BudgetInput`, `BasicTotalBudgetInput` |
 | 보고서 | 완료 | `client.reports` |
 | 자주입력/매월입력 | 완료 | `client.extras` |
 | 카드/입출금/캘린더 | 완료 | `client.extras` |
@@ -55,7 +57,7 @@
 ## 남은 작업
 
 - 문서 예제와 실제 API 응답 샘플을 기준으로 자주 쓰는 응답 모델을 추가합니다.
-- `EntryInput` 외에도 예산, 계정 생성/수정 같은 파라미터가 많은 요청에 dataclass 모델을
+- 포스트잇, 쪽지, 게시판처럼 입력 필드가 반복되는 보조 API에 dataclass 요청 모델을
   추가합니다.
 - 실제 계정이 필요한 통합 테스트는 환경 변수 기반으로 별도 분리합니다.
 - rate limit 자동 대기나 재시도 정책은 기본 동작에 넣지 않고 선택 가능한 옵션으로 설계합니다.
