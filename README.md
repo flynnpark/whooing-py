@@ -4,9 +4,9 @@
 
 ## 상태
 
-공식 문서 기준의 1차 클라이언트 구현이 들어간 상태입니다. 동기/비동기 클라이언트,
-API key/Bearer/OAuth 1.0a 인증 헤더, OAuth 2.0 PKCE 토큰 헬퍼, 주요 API 리소스 호출
-메서드, 응답 메타데이터와 오류 매핑을 제공합니다.
+공식 문서 기준의 1차 클라이언트 구현이 들어간 상태입니다. 동기/비동기 클라이언트, API
+key/Bearer/OAuth 1.0a 인증 헤더, OAuth 1.0a 앱 인증 플로우, Onetime PIN, OAuth 2.0
+PKCE 토큰 헬퍼, 주요 API 리소스 호출 메서드, 응답 메타데이터와 오류 매핑을 제공합니다.
 
 응답 스키마는 API 전역에서 폭이 넓기 때문에 현재는 `ApiResponse[JsonValue]` 형태로
 `results`, `rest_of_api`, `code`, 원본 `raw`를 보존합니다. 자주 쓰는 도메인부터 별도
@@ -88,6 +88,49 @@ with OAuth2TokenClient() as oauth:
     )
 ```
 
+OAuth 1.0a 앱 인증:
+
+```python
+from whooing import AppAuthClient, OAuth1aAuth, WhooingClient
+
+with AppAuthClient() as app_auth:
+    request_token = app_auth.request_token(
+        app_id="app_id",
+        app_secret="app_secret",
+        callback_uri="http://localhost/callback",
+    )
+    authorize_url = app_auth.build_authorization_url(token=request_token.token)
+    access_token = app_auth.access_token(
+        app_id="app_id",
+        app_secret="app_secret",
+        token=request_token.token,
+        pin="pin",
+    )
+
+auth = OAuth1aAuth(
+    app_id="app_id",
+    app_secret="app_secret",
+    token=access_token.token,
+    token_secret=access_token.token_secret,
+)
+
+with WhooingClient(auth=auth) as client:
+    user = client.users.get()
+```
+
+Onetime PIN 인증:
+
+```python
+from whooing import AppAuthClient
+
+with AppAuthClient() as app_auth:
+    access_token = app_auth.access_token_by_onetime(
+        app_id="app_id",
+        app_secret="app_secret",
+        onetime_pin="pin",
+    )
+```
+
 Pydantic 모델로 응답 파싱:
 
 ```python
@@ -119,11 +162,23 @@ with WhooingClient(api_key="발급된_인증키") as client:
 - `client.reports`: 통합 보고서, 요약 보고서, 사용자 정의 보고서 행
 - `client.extras`: 자주입력, 매월입력, 카드 보고서, 캘린더, 포스트잇, 쪽지, 게시판, 업로드, 알림
 
+## 커버리지
+
+현재 구현은 공식 문서의 인증 플로우와 주요 API 경로를 호출할 수 있는 래퍼를 제공합니다.
+다만 모든 응답 스키마를 Pydantic 모델로 고정하지는 않았습니다. 후잉 API 응답은 리소스별
+형태가 넓기 때문에 기본값은 `ApiResponse[JsonValue]`이고, 필요한 사용자가 optional
+Pydantic 헬퍼로 검증하는 방식을 택했습니다.
+
+문서의 특정 엔드포인트 래퍼가 빠져 있더라도 `client.request(...)`와
+`async_client.request(...)`로 직접 호출할 수 있습니다. 누락 래퍼는 테스트 가능한 단위로
+추가하는 것을 기본 방향으로 합니다.
+
 ## 설계 메모
 
 - 런타임 HTTP 처리는 `httpx`를 사용합니다.
 - API 모델은 가능한 범위에서 타입이 없는 딕셔너리 대신 명시적인 타입 구조로 정의합니다.
-- 인증은 API key, Bearer token, OAuth 2.0 PKCE, OAuth 1.0a 헤더 생성을 지원합니다.
+- 인증은 API key, Bearer token, OAuth 2.0 PKCE, OAuth 1.0a 앱 인증, OAuth 1.0a 헤더
+  생성을 지원합니다.
 - API 응답에는 요청 가능 횟수 정보가 포함되므로, 클라이언트 표면에서도 해당 메타데이터를
   버리지 않고 보존합니다.
 - 동기/비동기 클라이언트가 같은 리소스 경로 생성 로직을 공유하도록 구성합니다.
