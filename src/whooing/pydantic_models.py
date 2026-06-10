@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from enum import IntEnum
+from typing import Generic, Literal, TypeAlias, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
 
@@ -11,12 +12,113 @@ class WhooingModel(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class WhooingAPIResponse(WhooingModel, Generic[T]):
-    code: int | None = None
+class ApiCode(IntEnum):
+    OK = 200
+    NO_CONTENT = 204
+    BAD_REQUEST = 400
+    UNAUTHORIZED = 401
+    API_LIMIT_EXCEEDED = 402
+    AUTH_EXPIRED = 405
+    INTERNAL_ERROR = 500
+
+
+class ErrorParameters(WhooingModel):
+    field: str | None = None
+    parameter: str | None = None
+    reason: str | None = None
+    expected: str | int | float | bool | None = None
+    actual: str | int | float | bool | None = None
+
+
+class WhooingEnvelope(WhooingModel):
+    code: ApiCode | int | None = None
     message: str = ""
-    error_parameters: dict[str, object] = {}
+    error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
+    rest_of_api: int | None = None
+
+
+class WhooingAPIResponse(WhooingModel, Generic[T]):
+    code: ApiCode | int | None = None
+    message: str = ""
+    error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
     rest_of_api: int | None = None
     results: T | None = None
+
+
+class WhooingSuccessResponse(WhooingEnvelope, Generic[T]):
+    code: Literal[ApiCode.OK, 200] = ApiCode.OK
+    results: T
+
+
+class WhooingNoContentResponse(WhooingEnvelope):
+    code: Literal[ApiCode.NO_CONTENT, 204] = ApiCode.NO_CONTENT
+    results: None = None
+
+    @model_validator(mode="after")
+    def validate_no_content_message(self) -> WhooingNoContentResponse:
+        if self.message and self.message.lower() not in {"", "no content"}:
+            return self
+        return self
+
+
+class WhooingErrorResponse(WhooingEnvelope):
+    code: Literal[
+        ApiCode.BAD_REQUEST,
+        ApiCode.UNAUTHORIZED,
+        ApiCode.API_LIMIT_EXCEEDED,
+        ApiCode.AUTH_EXPIRED,
+        ApiCode.INTERNAL_ERROR,
+        400,
+        401,
+        402,
+        405,
+        500,
+    ]
+    results: None = None
+
+
+class OAuthErrorResponse(WhooingModel):
+    error: str
+    error_description: str | None = None
+
+
+class OAuth2TokenResponse(WhooingModel):
+    access_token: str
+    token_type: str
+    expires_in: int | None = None
+    refresh_token: str | None = None
+    scope: str | None = None
+
+
+class OAuth2MetadataResponse(WhooingModel):
+    issuer: str | None = None
+    authorization_endpoint: str
+    token_endpoint: str
+    revocation_endpoint: str | None = None
+    response_types_supported: list[str] | None = None
+    grant_types_supported: list[str] | None = None
+    code_challenge_methods_supported: list[str] | None = None
+    scopes_supported: list[str] | None = None
+
+
+class OAuth1RequestTokenResponse(WhooingModel):
+    token: str
+
+
+class OAuth1AccessTokenResponse(WhooingModel):
+    token: str
+    token_secret: str
+    user_id: int | None = None
+
+
+class HttpRateLimitResponse(WhooingModel):
+    status_code: Literal[429] = 429
+    retry_after: float | None = None
+
+
+WhooingStrictResponse: TypeAlias = (
+    WhooingSuccessResponse[T] | WhooingNoContentResponse | WhooingErrorResponse
+)
 
 
 class User(WhooingModel):

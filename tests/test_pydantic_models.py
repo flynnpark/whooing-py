@@ -2,11 +2,22 @@ from __future__ import annotations
 
 from whooing.pydantic_models import (
     AccountsResponse,
+    ApiCode,
     EntriesResponse,
+    ErrorParameters,
     NotificationsResponse,
+    OAuth1AccessTokenResponse,
+    OAuth1RequestTokenResponse,
+    OAuth2MetadataResponse,
+    OAuth2TokenResponse,
+    OAuthErrorResponse,
     SectionResponse,
     SectionsResponse,
+    User,
     UserResponse,
+    WhooingErrorResponse,
+    WhooingNoContentResponse,
+    WhooingSuccessResponse,
 )
 from whooing.response import parse_api_response
 
@@ -120,3 +131,89 @@ def test_entries_and_notifications_models_allow_extra_api_fields() -> None:
     assert entries.results[0].item == "커피"
     assert notifications.results is not None
     assert notifications.results[0].title == "알림"
+
+
+def test_strict_success_response_requires_results() -> None:
+    parsed = WhooingSuccessResponse[User].model_validate(
+        {
+            "code": 200,
+            "message": "",
+            "error_parameters": {},
+            "rest_of_api": 10,
+            "results": {"user_id": 1, "username": "flynn"},
+        }
+    )
+
+    assert parsed.code == ApiCode.OK
+    assert parsed.results.username == "flynn"
+
+
+def test_no_content_response_models_204_without_results() -> None:
+    parsed = WhooingNoContentResponse.model_validate(
+        {
+            "code": 204,
+            "message": "",
+            "error_parameters": {},
+            "rest_of_api": 9,
+        }
+    )
+
+    assert parsed.code == ApiCode.NO_CONTENT
+    assert parsed.results is None
+
+
+def test_error_response_models_documented_error_codes() -> None:
+    parsed = WhooingErrorResponse.model_validate(
+        {
+            "code": 400,
+            "message": "bad parameter",
+            "error_parameters": {"field": "section_id", "reason": "required"},
+            "rest_of_api": 8,
+        }
+    )
+
+    assert parsed.code == ApiCode.BAD_REQUEST
+    assert isinstance(parsed.error_parameters, ErrorParameters)
+    assert parsed.error_parameters.field == "section_id"
+
+
+def test_oauth_error_response_model() -> None:
+    parsed = OAuthErrorResponse.model_validate(
+        {"error": "invalid_grant", "error_description": "expired"}
+    )
+
+    assert parsed.error == "invalid_grant"
+    assert parsed.error_description == "expired"
+
+
+def test_oauth2_token_and_metadata_response_models() -> None:
+    token = OAuth2TokenResponse.model_validate(
+        {
+            "access_token": "access",
+            "token_type": "Bearer",
+            "expires_in": 31536000,
+            "refresh_token": "refresh",
+            "scope": "read,write",
+        }
+    )
+    metadata = OAuth2MetadataResponse.model_validate(
+        {
+            "authorization_endpoint": "https://whooing.com/oauth2/authorize",
+            "token_endpoint": "https://whooing.com/oauth2/token",
+            "revocation_endpoint": "https://whooing.com/oauth2/revoke",
+            "code_challenge_methods_supported": ["S256"],
+        }
+    )
+
+    assert token.token_type == "Bearer"
+    assert metadata.code_challenge_methods_supported == ["S256"]
+
+
+def test_oauth1_token_response_models() -> None:
+    request_token = OAuth1RequestTokenResponse.model_validate({"token": "request-token"})
+    access_token = OAuth1AccessTokenResponse.model_validate(
+        {"token": "access-token", "token_secret": "secret", "user_id": 1}
+    )
+
+    assert request_token.token == "request-token"
+    assert access_token.token_secret == "secret"

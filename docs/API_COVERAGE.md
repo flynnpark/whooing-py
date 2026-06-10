@@ -61,6 +61,7 @@
 | 선택적 재시도 정책 | 완료 | `RetryPolicy` |
 | Optional Pydantic 파싱 | 완료 | `parse`, `parse_results`, `parse_as`, `parse_results_as` |
 | 리소스별 Pydantic 응답 모델 | 완료 | `whooing.pydantic_models` |
+| 공통 응답 규칙 Pydantic 모델 | 완료 | 성공, 204, 오류, OAuth 오류, OAuth 토큰 응답 |
 
 ## 남은 작업
 

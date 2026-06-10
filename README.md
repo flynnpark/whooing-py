@@ -168,6 +168,20 @@ with WhooingClient(api_key="발급된_인증키") as client:
 설치한 사용자에게만 제공되며, 기본 설치 사용자에게 Pydantic 의존성을 강제하지 않습니다.
 공식 리소스별 모델은 `whooing.pydantic_models`에 모아 두었습니다.
 
+공통 응답 규칙까지 엄밀하게 검증하려면 strict envelope 모델을 사용할 수 있습니다.
+
+```python
+from whooing import WhooingClient
+from whooing.pydantic_models import User, WhooingSuccessResponse
+
+with WhooingClient(api_key="발급된_인증키") as client:
+    response = client.users.get()
+    parsed = response.parse(WhooingSuccessResponse[User])
+```
+
+`whooing.pydantic_models`에는 일반 API의 성공/204/오류 응답, OAuth 오류, OAuth2 토큰,
+OAuth2 metadata, OAuth1 토큰 응답 모델도 포함되어 있습니다.
+
 요청 모델 사용:
 
 ```python
