@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 from whooing import WhooingClient
 
 pytestmark = pytest.mark.integration
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def require_env(name: str) -> str:

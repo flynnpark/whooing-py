@@ -47,6 +47,20 @@ uv run pytest
 WHOOING_API_KEY=... WHOOING_SECTION_ID=... uv run pytest -m integration
 ```
 
+이 프로젝트에서만 자동으로 인식되게 하려면 `.env.example`을 참고해 `.env`를 만듭니다.
+`.env`는 Git에서 무시됩니다.
+
+```sh
+WHOOING_API_KEY=발급된_인증키
+WHOOING_SECTION_ID=s123
+```
+
+이후에는 별도 export 없이 실행할 수 있습니다.
+
+```sh
+uv run pytest -m integration
+```
+
 ## 사용 예시
 
 API key 기반 동기 호출:

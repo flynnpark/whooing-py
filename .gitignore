@@ -12,6 +12,10 @@ __pycache__/
 .coverage
 htmlcov/
 
+.env
+.env.*
+!.env.example
+
 .venv/
 dist/
 build/
