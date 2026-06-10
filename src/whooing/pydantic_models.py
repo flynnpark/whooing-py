@@ -38,8 +38,7 @@ def _normalize_error_parameters(value: object) -> object:
     return value
 
 
-class WhooingEnvelope(WhooingModel):
-    code: ApiCode | int | None = None
+class WhooingResponseMetadata(WhooingModel):
     message: str = ""
     error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
     rest_of_api: int | None = None
@@ -50,25 +49,21 @@ class WhooingEnvelope(WhooingModel):
         return _normalize_error_parameters(value)
 
 
-class WhooingAPIResponse(WhooingModel, Generic[T]):
+class WhooingEnvelope(WhooingResponseMetadata):
     code: ApiCode | int | None = None
-    message: str = ""
-    error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
-    rest_of_api: int | None = None
+
+
+class WhooingAPIResponse(WhooingResponseMetadata, Generic[T]):
+    code: ApiCode | int | None = None
     results: T | None = None
 
-    @field_validator("error_parameters", mode="before")
-    @classmethod
-    def normalize_error_parameters(cls, value: object) -> object:
-        return _normalize_error_parameters(value)
 
-
-class WhooingSuccessResponse(WhooingEnvelope, Generic[T]):
+class WhooingSuccessResponse(WhooingResponseMetadata, Generic[T]):
     code: Literal[ApiCode.OK, 200] = ApiCode.OK
     results: T
 
 
-class WhooingNoContentResponse(WhooingEnvelope):
+class WhooingNoContentResponse(WhooingResponseMetadata):
     code: Literal[ApiCode.NO_CONTENT, 204] = ApiCode.NO_CONTENT
     results: None = None
 
@@ -79,7 +74,7 @@ class WhooingNoContentResponse(WhooingEnvelope):
         return self
 
 
-class WhooingErrorResponse(WhooingEnvelope):
+class WhooingErrorResponse(WhooingResponseMetadata):
     code: Literal[
         ApiCode.BAD_REQUEST,
         ApiCode.UNAUTHORIZED,
