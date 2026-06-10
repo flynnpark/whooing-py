@@ -60,7 +60,7 @@
 | HTTP 429 매핑 | 완료 | `WhooingRateLimitError` |
 | 선택적 재시도 정책 | 완료 | `RetryPolicy` |
 | Optional Pydantic 파싱 | 완료 | `parse`, `parse_results`, `parse_as`, `parse_results_as` |
-| 리소스별 강한 응답 모델 | 미구현 | 기본 설치에 강제하지 않고 점진 추가 예정 |
+| 리소스별 Pydantic 응답 모델 | 완료 | `whooing.pydantic_models` |
 
 ## 남은 작업
 

@@ -154,13 +154,8 @@ with AppAuthClient() as app_auth:
 Pydantic 모델로 응답 파싱:
 
 ```python
-from pydantic import BaseModel
 from whooing import WhooingClient
-
-
-class Section(BaseModel):
-    section_id: str
-    title: str
+from whooing.pydantic_models import Section
 
 
 with WhooingClient(api_key="발급된_인증키") as client:
@@ -171,6 +166,7 @@ with WhooingClient(api_key="발급된_인증키") as client:
 단일 객체 응답은 `response.parse_results(Model)`로, 전체 API 응답은
 `response.parse(ResponseModel)`로 검증할 수 있습니다. 이 기능은 `pydantic` extra를
 설치한 사용자에게만 제공되며, 기본 설치 사용자에게 Pydantic 의존성을 강제하지 않습니다.
+공식 리소스별 모델은 `whooing.pydantic_models`에 모아 두었습니다.
 
 요청 모델 사용:
 

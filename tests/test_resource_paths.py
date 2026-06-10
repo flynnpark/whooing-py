@@ -188,6 +188,7 @@ def test_extras_remaining_paths() -> None:
     client.extras.unread_messages()
     client.extras.notifications(section_id="s1")
     client.extras.mark_notifications_read()
+    client.extras.monthly_items_slot()
 
     assert calls == [
         ("GET", "/api/bill.json"),
@@ -199,6 +200,7 @@ def test_extras_remaining_paths() -> None:
         ("GET", "/api/messages/unread.json"),
         ("GET", "/api/notifications.json"),
         ("PUT", "/api/notifications.json"),
+        ("GET", "/api/monthly_items/slot1.json"),
     ]
 
 

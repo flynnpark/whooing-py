@@ -478,9 +478,23 @@ class ExtrasResource(Generic[ResponseT]):
             data={"section_id": section_id, "item_ids": _comma_join(item_ids)},
         )
 
-    def monthly_items(self, item_id: str | None = None, **params: RequestValue) -> ResponseT:
-        path = "monthly_items.json" if item_id is None else f"monthly_items/slot1/{item_id}.json"
+    def monthly_items(
+        self,
+        item_id: str | None = None,
+        *,
+        slot: str | None = None,
+        **params: RequestValue,
+    ) -> ResponseT:
+        if item_id is None and slot is None:
+            path = "monthly_items.json"
+        elif item_id is None:
+            path = f"monthly_items/{slot}.json"
+        else:
+            path = f"monthly_items/{slot or 'slot1'}/{item_id}.json"
         return self._client.get(path, params=params)
+
+    def monthly_items_slot(self, slot: str = "slot1", **params: RequestValue) -> ResponseT:
+        return self._client.get(f"monthly_items/{slot}.json", params=params)
 
     def create_monthly_item(self, **fields: RequestValue) -> ResponseT:
         return self._client.post("monthly_items/slot1.json", data=fields)
