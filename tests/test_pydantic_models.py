@@ -44,6 +44,28 @@ def test_user_response_model_parses_documented_shape() -> None:
     assert parsed.results.username == "Helloman"
 
 
+def test_response_model_normalizes_empty_error_parameters_array() -> None:
+    response = parse_api_response(
+        {
+            "code": 200,
+            "message": "",
+            "error_parameters": [],
+            "rest_of_api": 4988,
+            "results": {
+                "user_id": 4,
+                "username": "Helloman",
+                "timezone": "Asia/Seoul",
+                "currency": "KRW",
+            },
+        }
+    )
+
+    parsed = response.parse(UserResponse)
+
+    assert isinstance(parsed.error_parameters, ErrorParameters)
+    assert parsed.error_parameters.field is None
+
+
 def test_section_models_parse_list_and_single_result() -> None:
     list_response = parse_api_response(
         {

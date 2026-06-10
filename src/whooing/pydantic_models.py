@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Generic, Literal, TypeAlias, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 T = TypeVar("T")
 
@@ -30,11 +30,24 @@ class ErrorParameters(WhooingModel):
     actual: str | int | float | bool | None = None
 
 
+def _normalize_error_parameters(value: object) -> object:
+    if value is None:
+        return {}
+    if isinstance(value, list) and len(value) == 0:
+        return {}
+    return value
+
+
 class WhooingEnvelope(WhooingModel):
     code: ApiCode | int | None = None
     message: str = ""
     error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
     rest_of_api: int | None = None
+
+    @field_validator("error_parameters", mode="before")
+    @classmethod
+    def normalize_error_parameters(cls, value: object) -> object:
+        return _normalize_error_parameters(value)
 
 
 class WhooingAPIResponse(WhooingModel, Generic[T]):
@@ -43,6 +56,11 @@ class WhooingAPIResponse(WhooingModel, Generic[T]):
     error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
     rest_of_api: int | None = None
     results: T | None = None
+
+    @field_validator("error_parameters", mode="before")
+    @classmethod
+    def normalize_error_parameters(cls, value: object) -> object:
+        return _normalize_error_parameters(value)
 
 
 class WhooingSuccessResponse(WhooingEnvelope, Generic[T]):

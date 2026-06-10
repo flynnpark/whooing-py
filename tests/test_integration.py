@@ -7,6 +7,12 @@ import pytest
 from dotenv import load_dotenv
 
 from whooing import WhooingClient
+from whooing.pydantic_models import (
+    AccountsResponse,
+    EntriesResponse,
+    SectionsResponse,
+    UserResponse,
+)
 from whooing.types import JsonValue
 
 pytestmark = pytest.mark.integration
@@ -57,6 +63,12 @@ def test_real_user_and_sections_api() -> None:
     assert user.code == 200
     assert sections.code == 200
 
+    parsed_user = user.parse(UserResponse)
+    parsed_sections = sections.parse(SectionsResponse)
+
+    assert parsed_user.results is not None
+    assert parsed_sections.results is not None
+
 
 def test_real_entries_latest_api() -> None:
     api_key = require_env("WHOOING_API_KEY")
@@ -66,3 +78,19 @@ def test_real_entries_latest_api() -> None:
         response = client.entries.latest(section_id=section_id)
 
     assert response.code == 200
+
+    parsed = response.parse(EntriesResponse)
+    assert parsed.results is not None
+
+
+def test_real_accounts_api_matches_pydantic_model() -> None:
+    api_key = require_env("WHOOING_API_KEY")
+
+    with WhooingClient(api_key=api_key) as client:
+        section_id = resolve_section_id(client)
+        response = client.accounts.list(section_id=section_id)
+
+    assert response.code == 200
+
+    parsed = response.parse(AccountsResponse)
+    assert parsed.results is not None
