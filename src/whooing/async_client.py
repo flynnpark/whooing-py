@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
-from typing import Literal
 
 import httpx
 
-from whooing._transport import clean_params, decode_api_response, resolve_auth
+from whooing._transport import (
+    DEFAULT_BASE_URL,
+    HttpMethod,
+    async_request_with_retries,
+    clean_params,
+    decode_api_response,
+    resolve_auth,
+)
 from whooing.auth import Auth
-from whooing.exceptions import WhooingTransportError
 from whooing.resources import (
     AccountsResource,
     BudgetResource,
@@ -22,10 +27,7 @@ from whooing.response import ApiResponse
 from whooing.retry import RetryPolicy
 from whooing.types import Headers, JsonValue, RequestData
 
-AsyncHttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
 AsyncApiResponse = Awaitable[ApiResponse[JsonValue]]
-
-DEFAULT_BASE_URL = "https://whooing.com/api/"
 
 
 class AsyncWhooingClient:
@@ -68,34 +70,24 @@ class AsyncWhooingClient:
 
     async def request(
         self,
-        method: AsyncHttpMethod,
+        method: HttpMethod,
         path: str,
         *,
         params: RequestData | None = None,
         data: RequestData | None = None,
         headers: Headers | None = None,
     ) -> ApiResponse[JsonValue]:
-        attempt = 1
-        while True:
-            try:
-                response = await self._client.request(
-                    method,
-                    path,
-                    params=clean_params(params),
-                    data=clean_params(data),
-                    headers=headers,
-                )
-            except httpx.TransportError as exc:
-                raise WhooingTransportError(str(exc)) from exc
-
-            if self._retry_policy is None or not self._retry_policy.should_retry(response, attempt):
-                break
-
-            delay = self._retry_policy.delay_for(response, attempt)
-            if delay > 0:
-                await asyncio.sleep(delay)
-            attempt += 1
-
+        response = await async_request_with_retries(
+            lambda: self._client.request(
+                method,
+                path,
+                params=clean_params(params),
+                data=clean_params(data),
+                headers=headers,
+            ),
+            retry_policy=self._retry_policy,
+            sleep=asyncio.sleep,
+        )
         return decode_api_response(response)
 
     def get(
