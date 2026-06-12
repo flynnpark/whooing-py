@@ -35,9 +35,12 @@ class ResourceClient(Protocol[ResponseT]):
     def delete(self, path: str, *, data: RequestData | None = None) -> ResponseT: ...
 
 
-class UsersResource(Generic[ResponseT]):
+class BaseResource(Generic[ResponseT]):
     def __init__(self, client: ResourceClient[ResponseT]) -> None:
         self._client = client
+
+
+class UsersResource(BaseResource[ResponseT]):
 
     def get(self) -> ResponseT:
         return self._client.get("user.json")
@@ -55,10 +58,7 @@ class UsersResource(Generic[ResponseT]):
         return self._client.get("user_point_logs.json", params=params)
 
 
-class SectionsResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class SectionsResource(BaseResource[ResponseT]):
     def list(self) -> ResponseT:
         return self._client.get("sections.json")
 
@@ -90,12 +90,9 @@ class SectionsResource(Generic[ResponseT]):
         )
 
 
-class AccountsResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class AccountsResource(BaseResource[ResponseT]):
     def list(self, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get("accounts.json", params={"section_id": section_id, **params})
+        return self._client.get("accounts.json", params=_with_section(section_id, params))
 
     def list_by_type(
         self,
@@ -106,7 +103,7 @@ class AccountsResource(Generic[ResponseT]):
     ) -> ResponseT:
         return self._client.get(
             f"accounts/{account}.json",
-            params={"section_id": section_id, **params},
+            params=_with_section(section_id, params),
         )
 
     def get(self, account: str, account_id: str, *, section_id: str) -> ResponseT:
@@ -174,12 +171,9 @@ class AccountsResource(Generic[ResponseT]):
         )
 
 
-class EntriesResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class EntriesResource(BaseResource[ResponseT]):
     def list(self, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get("entries.json", params={"section_id": section_id, **params})
+        return self._client.get("entries.json", params=_with_section(section_id, params))
 
     def get(self, entry_id: int | str, *, section_id: str) -> ResponseT:
         return self._client.get(f"entries/{entry_id}.json", params={"section_id": section_id})
@@ -239,13 +233,13 @@ class EntriesResource(Generic[ResponseT]):
         return self._client.delete(f"entries/{_comma_join(entry_ids)}/{section_id}.json")
 
     def latest(self, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get("entries/latest.json", params={"section_id": section_id, **params})
+        return self._client.get("entries/latest.json", params=_with_section(section_id, params))
 
     def latest_items(self, *, section_id: str) -> ResponseT:
         return self._client.get("entries/latest_items.json", params={"section_id": section_id})
 
     def analytics(self, name: str, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get(f"entries/{name}.json", params={"section_id": section_id, **params})
+        return self._client.get(f"entries/{name}.json", params=_with_section(section_id, params))
 
     def flow_of_account(self, *, section_id: str, **params: RequestValue) -> ResponseT:
         return self.analytics("flow_of_account", section_id=section_id, **params)
@@ -281,14 +275,11 @@ class EntriesResource(Generic[ResponseT]):
         return self._client.post("entries/outside_report.json", data={"source": source})
 
 
-class BudgetResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class BudgetResource(BaseResource[ResponseT]):
     def get(self, account: str, *, section_id: str, **params: RequestValue) -> ResponseT:
         return self._client.get(
             f"budget/{account}.json",
-            params={"section_id": section_id, **params},
+            params=_with_section(section_id, params),
         )
 
     def update(
@@ -365,7 +356,7 @@ class BudgetResource(Generic[ResponseT]):
         )
 
     def get_goal(self, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get("budget_goal.json", params={"section_id": section_id, **params})
+        return self._client.get("budget_goal.json", params=_with_section(section_id, params))
 
     def update_goal(self, *, section_id: str, **fields: RequestValue) -> ResponseT:
         return self._client.put("budget_goal.json", data={"section_id": section_id, **fields})
@@ -377,7 +368,7 @@ class BudgetResource(Generic[ResponseT]):
         return self._client.delete("budget_goal.json", data={"section_id": section_id})
 
     def get_capital_goal(self, *, section_id: str, **params: RequestValue) -> ResponseT:
-        return self._client.get("goal.json", params={"section_id": section_id, **params})
+        return self._client.get("goal.json", params=_with_section(section_id, params))
 
     def update_capital_goal(
         self,
@@ -402,10 +393,7 @@ class BudgetResource(Generic[ResponseT]):
         )
 
 
-class ReportsResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class ReportsResource(BaseResource[ResponseT]):
     def report(
         self,
         account: str | None = None,
@@ -426,10 +414,7 @@ class ReportsResource(Generic[ResponseT]):
         return self._client.post("main/report_customs.json", data=fields)
 
 
-class ExtrasResource(Generic[ResponseT]):
-    def __init__(self, client: ResourceClient[ResponseT]) -> None:
-        self._client = client
-
+class ExtrasResource(BaseResource[ResponseT]):
     def frequent_items(
         self,
         slot: str | None = None,
@@ -714,6 +699,10 @@ def _comma_join(values: str | int | Sequence[str | int]) -> str:
     if isinstance(values, str | int):
         return str(values)
     return ",".join(str(value) for value in values)
+
+
+def _with_section(section_id: str, params: Mapping[str, RequestValue]) -> RequestData:
+    return {"section_id": section_id, **params}
 
 
 def _nested_path(resource: str, first: str | None, second: str | None) -> str:
