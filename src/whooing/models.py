@@ -9,6 +9,21 @@ from whooing.types import JsonObject, RequestData, RequestValue
 AccountType = Literal["assets", "liabilities", "capital", "expenses", "income"]
 
 
+def _request_data(
+    required: Mapping[str, RequestValue] | None = None,
+    optional: Mapping[str, RequestValue] | None = None,
+    extra_fields: Mapping[str, RequestValue] | None = None,
+) -> RequestData:
+    data: dict[str, RequestValue] = {}
+    if required is not None:
+        data.update(required)
+    if optional is not None:
+        data.update({key: value for key, value in optional.items() if value is not None})
+    if extra_fields is not None:
+        data.update(extra_fields)
+    return data
+
+
 @dataclass(frozen=True, slots=True)
 class UserInput:
     nickname: str | None = None
@@ -17,16 +32,14 @@ class UserInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {}
-        if self.nickname is not None:
-            data["nickname"] = self.nickname
-        if self.language is not None:
-            data["language"] = self.language
-        if self.timezone is not None:
-            data["timezone"] = self.timezone
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            optional={
+                "nickname": self.nickname,
+                "language": self.language,
+                "timezone": self.timezone,
+            },
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,14 +50,11 @@ class SectionInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {"title": self.title}
-        if self.currency is not None:
-            data["currency"] = self.currency
-        if self.memo is not None:
-            data["memo"] = self.memo
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            required={"title": self.title},
+            optional={"currency": self.currency, "memo": self.memo},
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,22 +69,18 @@ class AccountInput:
     group: str | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {"title": self.title}
-        if self.memo is not None:
-            data["memo"] = self.memo
-        if self.open_date is not None:
-            data["open_date"] = self.open_date
-        if self.close_date is not None:
-            data["close_date"] = self.close_date
-        if self.currency is not None:
-            data["currency"] = self.currency
-        if self.initial_money is not None:
-            data["initial_money"] = self.initial_money
-        if self.order is not None:
-            data["order"] = self.order
-        if self.group is not None:
-            data["group"] = self.group
-        return data
+        return _request_data(
+            required={"title": self.title},
+            optional={
+                "memo": self.memo,
+                "open_date": self.open_date,
+                "close_date": self.close_date,
+                "currency": self.currency,
+                "initial_money": self.initial_money,
+                "order": self.order,
+                "group": self.group,
+            },
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,14 +116,10 @@ class BudgetGoalInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {}
-        if self.start_date is not None:
-            data["start_date"] = self.start_date
-        if self.end_date is not None:
-            data["end_date"] = self.end_date
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            optional={"start_date": self.start_date, "end_date": self.end_date},
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,16 +139,14 @@ class PostItInput:
     color: str | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {
-            "section_id": self.section_id,
-            "title": self.title,
-            "contents": self.contents,
-        }
-        if self.position is not None:
-            data["position"] = self.position
-        if self.color is not None:
-            data["color"] = self.color
-        return data
+        return _request_data(
+            required={
+                "section_id": self.section_id,
+                "title": self.title,
+                "contents": self.contents,
+            },
+            optional={"position": self.position, "color": self.color},
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,25 +162,18 @@ class FrequentItemInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {
-            "section_id": self.section_id,
-            "item": self.item,
-        }
-        if self.money is not None:
-            data["money"] = self.money
-        if self.memo is not None:
-            data["memo"] = self.memo
-        if self.left_account is not None:
-            data["l_account"] = self.left_account
-        if self.left_account_id is not None:
-            data["l_account_id"] = self.left_account_id
-        if self.right_account is not None:
-            data["r_account"] = self.right_account
-        if self.right_account_id is not None:
-            data["r_account_id"] = self.right_account_id
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            required={"section_id": self.section_id, "item": self.item},
+            optional={
+                "money": self.money,
+                "memo": self.memo,
+                "l_account": self.left_account,
+                "l_account_id": self.left_account_id,
+                "r_account": self.right_account,
+                "r_account_id": self.right_account_id,
+            },
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,21 +187,16 @@ class MonthlyItemInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {
-            "section_id": self.section_id,
-            "item": self.item,
-        }
-        if self.money is not None:
-            data["money"] = self.money
-        if self.memo is not None:
-            data["memo"] = self.memo
-        if self.start_date is not None:
-            data["start_date"] = self.start_date
-        if self.end_date is not None:
-            data["end_date"] = self.end_date
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            required={"section_id": self.section_id, "item": self.item},
+            optional={
+                "money": self.money,
+                "memo": self.memo,
+                "start_date": self.start_date,
+                "end_date": self.end_date,
+            },
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,10 +220,10 @@ class BbsPostInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {"title": self.title, "contents": self.contents}
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(
+            required={"title": self.title, "contents": self.contents},
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,10 +232,7 @@ class BbsCommentInput:
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {"contents": self.contents}
-        if self.extra_fields is not None:
-            data.update(self.extra_fields)
-        return data
+        return _request_data(required={"contents": self.contents}, extra_fields=self.extra_fields)
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,18 +247,18 @@ class EntryInput:
     memo: str | None = None
 
     def to_request_data(self) -> RequestData:
-        data: dict[str, RequestValue] = {
-            "entry_date": self.entry_date,
-            "l_account": self.left_account,
-            "l_account_id": self.left_account_id,
-            "r_account": self.right_account,
-            "r_account_id": self.right_account_id,
-            "item": self.item,
-            "money": self.money,
-        }
-        if self.memo is not None:
-            data["memo"] = self.memo
-        return data
+        return _request_data(
+            required={
+                "entry_date": self.entry_date,
+                "l_account": self.left_account,
+                "l_account_id": self.left_account_id,
+                "r_account": self.right_account,
+                "r_account_id": self.right_account_id,
+                "item": self.item,
+                "money": self.money,
+            },
+            optional={"memo": self.memo},
+        )
 
     def to_json_object(self) -> JsonObject:
         data: JsonObject = {
