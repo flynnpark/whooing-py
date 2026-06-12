@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Generic, Literal, TypeAlias, TypeVar
+from typing import Annotated, Generic, Literal, TypeAlias, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -23,11 +23,26 @@ class ApiCode(IntEnum):
 
 
 class ErrorParameters(WhooingModel):
-    field: str | None = None
-    parameter: str | None = None
-    reason: str | None = None
-    expected: str | int | float | bool | None = None
-    actual: str | int | float | bool | None = None
+    field: Annotated[
+        str | None,
+        Field(title="오류 필드", description="오류가 발생한 요청 필드 이름입니다."),
+    ] = None
+    parameter: Annotated[
+        str | None,
+        Field(title="오류 파라미터", description="오류가 발생한 API 파라미터 이름입니다."),
+    ] = None
+    reason: Annotated[
+        str | None,
+        Field(title="오류 사유", description="후잉 API가 반환한 파라미터 오류 사유입니다."),
+    ] = None
+    expected: Annotated[
+        str | int | float | bool | None,
+        Field(title="기대값", description="API가 기대한 값 또는 형식입니다."),
+    ] = None
+    actual: Annotated[
+        str | int | float | bool | None,
+        Field(title="실제값", description="요청에서 전달된 실제 값입니다."),
+    ] = None
 
 
 def _normalize_error_parameters(value: object) -> object:
@@ -39,9 +54,25 @@ def _normalize_error_parameters(value: object) -> object:
 
 
 class WhooingResponseMetadata(WhooingModel):
-    message: str = ""
-    error_parameters: ErrorParameters = Field(default_factory=ErrorParameters)
-    rest_of_api: int | None = None
+    message: Annotated[
+        str,
+        Field(title="응답 메시지", description="후잉 API가 반환한 응답 메시지입니다."),
+    ] = ""
+    error_parameters: Annotated[
+        ErrorParameters,
+        Field(
+            default_factory=ErrorParameters,
+            title="오류 파라미터",
+            description="오류 응답일 때 포함되는 세부 파라미터 정보입니다.",
+        ),
+    ]
+    rest_of_api: Annotated[
+        int | None,
+        Field(
+            title="남은 API 호출 수",
+            description="후잉 API 제한 기준에서 남은 호출 가능 횟수입니다.",
+        ),
+    ] = None
 
     @field_validator("error_parameters", mode="before")
     @classmethod
@@ -50,22 +81,42 @@ class WhooingResponseMetadata(WhooingModel):
 
 
 class WhooingEnvelope(WhooingResponseMetadata):
-    code: ApiCode | int | None = None
+    code: Annotated[
+        ApiCode | int | None,
+        Field(title="응답 코드", description="후잉 API의 논리 응답 코드입니다."),
+    ] = None
 
 
 class WhooingAPIResponse(WhooingResponseMetadata, Generic[T]):
-    code: ApiCode | int | None = None
-    results: T | None = None
+    code: Annotated[
+        ApiCode | int | None,
+        Field(title="응답 코드", description="후잉 API의 논리 응답 코드입니다."),
+    ] = None
+    results: Annotated[
+        T | None,
+        Field(title="응답 결과", description="API별 실제 응답 데이터입니다."),
+    ] = None
 
 
 class WhooingSuccessResponse(WhooingResponseMetadata, Generic[T]):
-    code: Literal[ApiCode.OK, 200] = ApiCode.OK
-    results: T
+    code: Annotated[
+        Literal[ApiCode.OK, 200],
+        Field(title="성공 응답 코드", description="성공 응답을 나타내는 후잉 API 코드입니다."),
+    ] = ApiCode.OK
+    results: Annotated[
+        T, Field(title="성공 응답 결과", description="성공한 API의 실제 응답 데이터입니다.")
+    ]
 
 
 class WhooingNoContentResponse(WhooingResponseMetadata):
-    code: Literal[ApiCode.NO_CONTENT, 204] = ApiCode.NO_CONTENT
-    results: None = None
+    code: Annotated[
+        Literal[ApiCode.NO_CONTENT, 204],
+        Field(title="내용 없음 응답 코드", description="결과 본문이 없는 성공 응답 코드입니다."),
+    ] = ApiCode.NO_CONTENT
+    results: Annotated[
+        None,
+        Field(title="응답 결과", description="204 응답에서는 결과 데이터가 없습니다."),
+    ] = None
 
     @model_validator(mode="after")
     def validate_no_content_message(self) -> WhooingNoContentResponse:
@@ -75,24 +126,38 @@ class WhooingNoContentResponse(WhooingResponseMetadata):
 
 
 class WhooingErrorResponse(WhooingResponseMetadata):
-    code: Literal[
-        ApiCode.BAD_REQUEST,
-        ApiCode.UNAUTHORIZED,
-        ApiCode.API_LIMIT_EXCEEDED,
-        ApiCode.AUTH_EXPIRED,
-        ApiCode.INTERNAL_ERROR,
-        400,
-        401,
-        402,
-        405,
-        500,
+    code: Annotated[
+        Literal[
+            ApiCode.BAD_REQUEST,
+            ApiCode.UNAUTHORIZED,
+            ApiCode.API_LIMIT_EXCEEDED,
+            ApiCode.AUTH_EXPIRED,
+            ApiCode.INTERNAL_ERROR,
+            400,
+            401,
+            402,
+            405,
+            500,
+        ],
+        Field(title="오류 응답 코드", description="후잉 API 오류를 나타내는 논리 응답 코드입니다."),
     ]
-    results: None = None
+    results: Annotated[
+        None,
+        Field(title="응답 결과", description="오류 응답에서는 결과 데이터가 없습니다."),
+    ] = None
 
 
 class HttpRateLimitResponse(WhooingModel):
-    status_code: Literal[429] = 429
-    retry_after: float | None = None
+    status_code: Annotated[
+        Literal[429],
+        Field(title="HTTP 상태 코드", description="HTTP 레벨 요청 제한 상태 코드입니다."),
+    ] = 429
+    retry_after: Annotated[
+        float | None,
+        Field(
+            title="재시도 대기 시간", description="다음 요청까지 대기해야 하는 초 단위 시간입니다."
+        ),
+    ] = None
 
 
 WhooingStrictResponse: TypeAlias = (
