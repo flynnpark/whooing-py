@@ -353,30 +353,31 @@ def collect_read_results(client: WhooingClient) -> list[CollectedResult]:
     call("extras.bill", lambda: client.extras.bill(section_id=section_id))
     call("extras.checkcard", lambda: client.extras.checkcard(section_id=section_id))
     call("extras.in_out", lambda: client.extras.in_out(section_id=section_id))
+
+    def in_out_account_call(account_type: InOutAccountType) -> ApiCall:
+        return lambda: client.extras.in_out(
+            account_type,
+            section_id=section_id,
+        )
+
+    def in_out_detail_call(account_type: InOutAccountType, account_id: str) -> ApiCall:
+        return lambda: client.extras.in_out(
+            account_type,
+            account_id,
+            section_id=section_id,
+        )
+
     for account_type in IN_OUT_ACCOUNT_TYPES:
         in_out_result = call(
             f"extras.in_out.{account_type}",
-            cast(
-                ApiCall,
-                lambda account_type=account_type: client.extras.in_out(
-                    account_type,
-                    section_id=section_id,
-                ),
-            ),
+            in_out_account_call(account_type),
         )
         account_id = resolve_report_account_id(in_out_result)
         if account_id is not None:
             account_id_str = str(account_id)
             call(
                 f"extras.in_out.{account_type}.{account_id_str}",
-                cast(
-                    ApiCall,
-                    lambda account_type=account_type, account_id=account_id_str: client.extras.in_out(
-                        account_type,
-                        account_id,
-                        section_id=section_id,
-                    ),
-                ),
+                in_out_detail_call(account_type, account_id_str),
             )
     call("extras.calendar", lambda: client.extras.calendar(section_id=section_id))
 
