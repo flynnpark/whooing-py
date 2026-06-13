@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Generic, Protocol, TypeVar
+from typing import Generic, Literal, Protocol, TypeVar
 
 from whooing.models import (
     AccountInput,
@@ -41,7 +41,6 @@ class BaseResource(Generic[ResponseT]):
 
 
 class UsersResource(BaseResource[ResponseT]):
-
     def get(self) -> ResponseT:
         return self._client.get("user.json")
 
@@ -407,11 +406,42 @@ class ReportsResource(BaseResource[ResponseT]):
         path = "report_summary.json" if account is None else f"report_summary/{account}.json"
         return self._client.get(path, params=params)
 
-    def custom_rows(self, **params: RequestValue) -> ResponseT:
-        return self._client.get("main/report_customs.json", params=params)
+    def custom_rows(
+        self,
+        *,
+        section_id: str,
+        report: Literal["report_bs", "report_pl"],
+        action: Literal["list", "info"] = "list",
+        custom_id: int | str | None = None,
+        **params: RequestValue,
+    ) -> ResponseT:
+        request_params: dict[str, RequestValue] = {
+            "section_id": section_id,
+            "report": report,
+            "action": action,
+            **params,
+        }
+        if custom_id is not None:
+            request_params["customId"] = custom_id
+        return self._client.get("main/report_customs.json", params=request_params)
 
-    def update_custom_rows(self, **fields: RequestValue) -> ResponseT:
-        return self._client.post("main/report_customs.json", data=fields)
+    def update_custom_rows(
+        self,
+        *,
+        section_id: str,
+        report: Literal["report_bs", "report_pl"],
+        action: Literal["post", "delete", "sort", "clean_disabled"],
+        **fields: RequestValue,
+    ) -> ResponseT:
+        return self._client.post(
+            "main/report_customs.json",
+            data={
+                "section_id": section_id,
+                "report": report,
+                "action": action,
+                **fields,
+            },
+        )
 
 
 class ExtrasResource(BaseResource[ResponseT]):

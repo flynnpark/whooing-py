@@ -225,8 +225,8 @@ def _collect_implemented_api_endpoints() -> frozenset[tuple[str, str]]:
     reports.report("assets", "x1")
     reports.summary()
     reports.summary("assets")
-    reports.custom_rows()
-    reports.update_custom_rows(rows="[]")
+    reports.custom_rows(section_id="s1", report="report_bs")
+    reports.update_custom_rows(section_id="s1", report="report_bs", action="post", row="{}")
 
     extras.frequent_items()
     extras.frequent_items("slot1")

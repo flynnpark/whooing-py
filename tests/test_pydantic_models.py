@@ -12,6 +12,7 @@ from whooing.pydantic_models import (
     BudgetReportResponse,
     CalendarResponse,
     CapitalGoalsResponse,
+    CustomReportRowsResultResponse,
     EntriesListResponse,
     EntriesResponse,
     Entry,
@@ -20,6 +21,7 @@ from whooing.pydantic_models import (
     EntryNameAmountResponse,
     ErrorParameters,
     FrequentItemsSlotsResponse,
+    InOutAccountResponse,
     InOutResponse,
     MonthlyItemsResponse,
     NotificationsResponse,
@@ -474,7 +476,7 @@ def test_actual_report_extras_and_notification_shapes_parse() -> None:
                 "total": {"balance": 1000, "in": 300, "out": 100, "margin": 200},
             },
         }
-    ).parse(InOutResponse)
+    ).parse(InOutAccountResponse)
     upload = parse_api_response(
         {
             "code": 200,
@@ -503,6 +505,27 @@ def test_actual_report_extras_and_notification_shapes_parse() -> None:
     assert upload.results is not None
     assert upload.results.file_info is not None
     assert upload.results.file_info.mime_type == "image/png"
+
+
+def test_actual_report_in_out_overview_shape_parse() -> None:
+    response = parse_api_response(
+        {
+            "code": 200,
+            "message": "",
+            "error_parameters": {},
+            "rest_of_api": 4988,
+            "results": {
+                "assets": {
+                    "total": {"in": 300, "out": 100, "margin": 200},
+                    "accounts": [{"account_id": "x1", "in": 300, "out": 100, "margin": 200}],
+                },
+                "liabilities": {},
+            },
+        }
+    ).parse(InOutResponse)
+
+    assert response.results is not None
+    assert response.results.assets is not None
 
 
 def test_actual_report_bbs_shape_accepts_counted_comments() -> None:
@@ -563,6 +586,28 @@ def test_actual_report_unread_messages_and_empty_bbs_post_shapes_parse() -> None
 
     assert unread.results == 0
     assert empty_post.results == []
+
+
+def test_report_custom_rows_result_uses_documented_non_envelope_shape() -> None:
+    parsed = CustomReportRowsResultResponse.model_validate(
+        {
+            "status": "done",
+            "rows": [
+                {
+                    "id": "12",
+                    "report": "report_bs",
+                    "title": "현금성 자산",
+                    "plus": ["assets_x11"],
+                    "minus": ["liabilities_total"],
+                    "addminus": "x",
+                    "money": 0,
+                }
+            ],
+        }
+    )
+
+    assert parsed.status == "done"
+    assert parsed.rows[0].plus == ["assets_x11"]
 
 
 def test_strict_success_response_requires_results() -> None:

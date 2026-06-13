@@ -1027,6 +1027,17 @@ class InOutReport(WhooingModel):
     ] = None
 
 
+class InOutOverview(WhooingModel):
+    assets: Annotated[
+        InOutReport | dict[str, object] | None,
+        Field(title="자산 입출금", description="자산 계정의 입금, 출금, 순증감 집계입니다."),
+    ] = None
+    liabilities: Annotated[
+        InOutReport | dict[str, object] | None,
+        Field(title="부채 입출금", description="부채 계정의 입금, 출금, 순증감 집계입니다."),
+    ] = None
+
+
 class CalendarItem(WhooingModel):
     entry_date: Annotated[
         DateValue | None, Field(title="거래일", description="캘린더 항목의 날짜입니다.")
@@ -1222,13 +1233,45 @@ class ReportSummary(WhooingModel):
 
 
 class CustomReportRow(WhooingModel):
+    id: Annotated[
+        IdentifierValue | None,
+        Field(title="사용자 정의 리포트 행 ID", description="사용자 정의 리포트 행 식별자입니다."),
+    ] = None
     row_id: Annotated[
         IdentifierValue | None,
         Field(title="사용자 정의 리포트 행 ID", description="사용자 정의 리포트 행 식별자입니다."),
     ] = None
+    report: Annotated[
+        str | None,
+        Field(title="보고서 종류", description="사용자 정의 행이 속한 보고서 종류입니다."),
+    ] = None
     title: Annotated[
         str | None,
         Field(title="사용자 정의 행 이름", description="사용자 정의 리포트 행의 표시 이름입니다."),
+    ] = None
+    plus: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            title="더할 항목",
+            description="행 계산식에서 더할 계정 항목 목록입니다.",
+        ),
+    ]
+    minus: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            title="뺄 항목",
+            description="행 계산식에서 뺄 계정 항목 목록입니다.",
+        ),
+    ]
+    addminus: Annotated[
+        str | None,
+        Field(title="추가 계산식", description="plus-minus 합산값 x에 적용할 사칙연산 식입니다."),
+    ] = None
+    money: Annotated[
+        MoneyValue | None,
+        Field(title="계산 금액", description="사용자 정의 리포트 행의 계산 결과 금액입니다."),
     ] = None
     account: Annotated[
         AccountGroupValue | str | None,
@@ -1238,6 +1281,21 @@ class CustomReportRow(WhooingModel):
         str | None,
         Field(title="계정 ID", description="사용자 정의 행과 연결된 계정 과목 ID입니다."),
     ] = None
+
+
+class CustomReportRowsResult(WhooingModel):
+    status: Annotated[
+        str | None,
+        Field(title="처리 상태", description="사용자 정의 보고서 행 API의 처리 상태입니다."),
+    ] = None
+    rows: Annotated[
+        list[CustomReportRow],
+        Field(
+            default_factory=list,
+            title="사용자 정의 행 목록",
+            description="사용자 정의 보고서 행 목록입니다.",
+        ),
+    ]
 
 
 class PostIt(WhooingModel):

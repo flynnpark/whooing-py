@@ -158,8 +158,13 @@ def test_report_paths() -> None:
     client.reports.report("expenses")
     client.reports.summary()
     client.reports.summary("expenses")
-    client.reports.custom_rows(section_id="s1")
-    client.reports.update_custom_rows(section_id="s1", rows="[]")
+    client.reports.custom_rows(section_id="s1", report="report_bs")
+    client.reports.update_custom_rows(
+        section_id="s1",
+        report="report_bs",
+        action="post",
+        row="{}",
+    )
 
     assert calls == [
         "/api/report.json",

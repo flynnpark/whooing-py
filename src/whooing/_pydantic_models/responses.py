@@ -18,6 +18,7 @@ from whooing._pydantic_models.resources import (
     CapitalGoalRow,
     Checkcard,
     CustomReportRow,
+    CustomReportRowsResult,
     Entry,
     EntryAnalysis,
     EntryChangeReport,
@@ -27,6 +28,8 @@ from whooing._pydantic_models.resources import (
     FrequentItem,
     FrequentItems,
     InOut,
+    InOutDetail,
+    InOutOverview,
     InOutReport,
     Message,
     MonthlyItem,
@@ -74,13 +77,16 @@ BillsResponse = WhooingAPIResponse[BillReport]
 CheckcardsListResponse = WhooingAPIResponse[list[Checkcard]]
 CheckcardsResponse = WhooingAPIResponse[BillReport]
 InOutListResponse = WhooingAPIResponse[list[InOut]]
-InOutResponse = WhooingAPIResponse[InOutReport]
+InOutResponse = WhooingAPIResponse[InOutOverview]
+InOutAccountResponse = WhooingAPIResponse[InOutReport]
+InOutDetailResponse = WhooingAPIResponse[InOutDetail]
 CalendarItemsResponse = WhooingAPIResponse[list[CalendarItem]]
 CalendarResponse = WhooingAPIResponse[CalendarReport]
 ReportsListResponse = WhooingAPIResponse[list[Report]]
 ReportResponse = WhooingAPIResponse[ReportResult]
 ReportSummaryResponse = WhooingAPIResponse[ReportSummary]
 CustomReportRowsResponse = WhooingAPIResponse[list[CustomReportRow]]
+CustomReportRowsResultResponse = CustomReportRowsResult
 PostItsResponse = WhooingAPIResponse[list[PostIt]]
 PostItResponse = WhooingAPIResponse[PostIt]
 MessagesResponse = WhooingAPIResponse[list[Message]]
