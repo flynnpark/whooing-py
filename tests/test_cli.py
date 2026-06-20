@@ -7,6 +7,7 @@ from typing import cast
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from whooing.auth import OAuth1RequestToken, OAuth2Token
@@ -53,6 +54,22 @@ def test_version_option_outputs_package_version() -> None:
 
     assert result.exit_code == 0
     assert result.stdout == "whooing-py 0.1.0\n"
+
+
+def test_help_exposes_resource_command_groups() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    for command in [
+        "user",
+        "sections",
+        "accounts",
+        "entries",
+        "budgets",
+        "reports",
+        "extras",
+    ]:
+        assert command in result.stdout
 
 
 def test_profile_commands_store_and_mask_credentials(tmp_path: Path) -> None:
@@ -288,6 +305,56 @@ def test_api_request_command_uses_auth_and_parses_pairs(monkeypatch: pytest.Monk
 
     assert result.exit_code == 0
     assert json.loads(result.stdout)["results"] == [{"section_id": "s1"}]
+
+
+def test_api_request_validates_common_response_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @dataclass(frozen=True, slots=True)
+    class FakeResponse:
+        raw: JsonObject
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://whooing.com/api/"
+            assert api_key == "secret"
+            assert access_token is None
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            params: RequestData | None = None,
+            data: RequestData | None = None,
+        ) -> FakeResponse:
+            assert method == "GET"
+            assert path == "sections.json"
+            assert params is None
+            assert data is None
+            return FakeResponse(raw={"code": "invalid"})
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        ["--api-key", "secret", "api", "request", "GET", "sections.json"],
+    )
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, ValidationError)
 
 
 def test_resource_commands_use_client_resources(monkeypatch: pytest.MonkeyPatch) -> None:
