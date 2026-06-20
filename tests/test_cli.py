@@ -68,8 +68,10 @@ def test_main_without_args_shows_help_without_traceback(capsys: pytest.CaptureFi
 
 def test_main_click_error_shows_message_without_traceback(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     exit_code = main(["--config", str(tmp_path / "config.json"), "profile", "show"])
     captured = capsys.readouterr()
 
@@ -85,6 +87,7 @@ def test_main_auth_error_shows_message_without_traceback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("WHOOING_API_KEY", raising=False)
     monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
 
@@ -96,6 +99,25 @@ def test_main_auth_error_shows_message_without_traceback(
     assert "Authentication is required" in captured.err
     assert "Invalid value" not in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_profile_set_loads_credentials_from_dotenv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("WHOOING_API_KEY=dotenv-secret\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    set_result = main(["--config", str(config_path), "profile", "set"])
+    show_result = runner.invoke(app, ["--config", str(config_path), "profile", "show"])
+
+    assert set_result == 0
+    assert show_result.exit_code == 0
+    assert json.loads(show_result.stdout)["api_key"] == "dote...cret"
 
 
 def test_help_exposes_resource_command_groups() -> None:
