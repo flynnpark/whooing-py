@@ -36,9 +36,19 @@ app = typer.Typer(no_args_is_help=True, invoke_without_command=True)
 auth_app = typer.Typer(no_args_is_help=True, help="Authentication helpers")
 profile_app = typer.Typer(no_args_is_help=True, help="Manage local CLI profiles")
 api_app = typer.Typer(no_args_is_help=True, help="Call Whooing API paths")
+user_app = typer.Typer(no_args_is_help=True, help="User API commands")
+sections_app = typer.Typer(no_args_is_help=True, help="Section API commands")
+accounts_app = typer.Typer(no_args_is_help=True, help="Account API commands")
+entries_app = typer.Typer(no_args_is_help=True, help="Entry API commands")
+reports_app = typer.Typer(no_args_is_help=True, help="Report API commands")
 app.add_typer(auth_app, name="auth")
 app.add_typer(profile_app, name="profile")
 app.add_typer(api_app, name="api")
+app.add_typer(user_app, name="user")
+app.add_typer(sections_app, name="sections")
+app.add_typer(accounts_app, name="accounts")
+app.add_typer(entries_app, name="entries")
+app.add_typer(reports_app, name="reports")
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +303,155 @@ def api_request(
     _echo_payload(ctx, response.raw)
 
 
+@user_app.command("get")
+def user_get(ctx: typer.Context) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.users.get()
+    _echo_payload(ctx, response.raw)
+
+
+@user_app.command("logs")
+def user_logs(
+    ctx: typer.Context,
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.users.logs(**_parse_fields(param))
+    _echo_payload(ctx, response.raw)
+
+
+@sections_app.command("list")
+def sections_list(ctx: typer.Context) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.sections.list()
+    _echo_payload(ctx, response.raw)
+
+
+@sections_app.command("get")
+def sections_get(
+    ctx: typer.Context,
+    section_id: Annotated[str, typer.Argument(help="Section ID.")],
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.sections.get(section_id)
+    _echo_payload(ctx, response.raw)
+
+
+@sections_app.command("default")
+def sections_default(ctx: typer.Context) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.sections.default()
+    _echo_payload(ctx, response.raw)
+
+
+@accounts_app.command("list")
+def accounts_list(
+    ctx: typer.Context,
+    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    account: Annotated[
+        str | None,
+        typer.Option("--account", help="Optional account group, such as assets or expenses."),
+    ] = None,
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        if account is None:
+            response = client.accounts.list(section_id=section_id, **_parse_fields(param))
+        else:
+            response = client.accounts.list_by_type(
+                account,
+                section_id=section_id,
+                **_parse_fields(param),
+            )
+    _echo_payload(ctx, response.raw)
+
+
+@accounts_app.command("get")
+def accounts_get(
+    ctx: typer.Context,
+    account: Annotated[str, typer.Argument(help="Account group.")],
+    account_id: Annotated[str, typer.Argument(help="Account ID.")],
+    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.accounts.get(account, account_id, section_id=section_id)
+    _echo_payload(ctx, response.raw)
+
+
+@entries_app.command("list")
+def entries_list(
+    ctx: typer.Context,
+    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.entries.list(section_id=section_id, **_parse_fields(param))
+    _echo_payload(ctx, response.raw)
+
+
+@entries_app.command("latest")
+def entries_latest(
+    ctx: typer.Context,
+    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.entries.latest(section_id=section_id, **_parse_fields(param))
+    _echo_payload(ctx, response.raw)
+
+
+@entries_app.command("get")
+def entries_get(
+    ctx: typer.Context,
+    entry_id: Annotated[str, typer.Argument(help="Entry ID.")],
+    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.entries.get(entry_id, section_id=section_id)
+    _echo_payload(ctx, response.raw)
+
+
+@reports_app.command("report")
+def reports_report(
+    ctx: typer.Context,
+    account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
+    account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.reports.report(account, account_id, **_parse_fields(param))
+    _echo_payload(ctx, response.raw)
+
+
+@reports_app.command("summary")
+def reports_summary(
+    ctx: typer.Context,
+    account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.reports.summary(account, **_parse_fields(param))
+    _echo_payload(ctx, response.raw)
+
+
 @profile_app.command("set")
 def profile_set(
     ctx: typer.Context,
@@ -404,6 +563,10 @@ def _parse_pairs(values: list[str] | None) -> RequestData | None:
             raise typer.BadParameter(f"Expected key=value: {value}")
         data[key] = _parse_request_value(raw)
     return data
+
+
+def _parse_fields(values: list[str] | None) -> dict[str, RequestValue]:
+    return dict(_parse_pairs(values) or {})
 
 
 def _parse_request_value(value: str) -> RequestValue:

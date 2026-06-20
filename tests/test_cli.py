@@ -288,3 +288,70 @@ def test_api_request_command_uses_auth_and_parses_pairs(monkeypatch: pytest.Monk
 
     assert result.exit_code == 0
     assert json.loads(result.stdout)["results"] == [{"section_id": "s1"}]
+
+
+def test_resource_commands_use_client_resources(monkeypatch: pytest.MonkeyPatch) -> None:
+    @dataclass(frozen=True, slots=True)
+    class FakeResponse:
+        raw: JsonObject
+
+    class FakeSections:
+        def list(self) -> FakeResponse:
+            return FakeResponse(raw={"code": 200, "results": [{"section_id": "s1"}]})
+
+    class FakeAccounts:
+        def list_by_type(
+            self,
+            account: str,
+            *,
+            section_id: str,
+            **params: object,
+        ) -> FakeResponse:
+            assert account == "assets"
+            assert section_id == "s1"
+            assert params == {"limit": 5}
+            return FakeResponse(raw={"code": 200, "results": [{"account_id": "x1"}]})
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://whooing.com/api/"
+            assert api_key == "secret"
+            assert access_token is None
+            self.sections = FakeSections()
+            self.accounts = FakeAccounts()
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    sections_result = runner.invoke(app, ["--api-key", "secret", "sections", "list"])
+    accounts_result = runner.invoke(
+        app,
+        [
+            "--api-key",
+            "secret",
+            "accounts",
+            "list",
+            "--section-id",
+            "s1",
+            "--account",
+            "assets",
+            "--param",
+            "limit=5",
+        ],
+    )
+
+    assert sections_result.exit_code == 0
+    assert accounts_result.exit_code == 0
+    assert json.loads(sections_result.stdout)["results"] == [{"section_id": "s1"}]
+    assert json.loads(accounts_result.stdout)["results"] == [{"account_id": "x1"}]
