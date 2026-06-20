@@ -1,0 +1,12 @@
+{
+  "code": 200,
+  "message": "",
+  "error_parameters": {},
+  "rest_of_api": 4988,
+  "results": {
+    "user_id": 4,
+    "username": "Helloman",
+    "timezone": "Asia/Seoul",
+    "currency": "KRW"
+  }
+}

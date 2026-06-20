@@ -1,0 +1,25 @@
+{
+  "code": 200,
+  "message": "",
+  "error_parameters": {},
+  "rest_of_api": 4988,
+  "results": {
+    "account": 0,
+    "messages": 0,
+    "messages_count": 0,
+    "newReleases": 0,
+    "notification": {
+      "badgeCount": 1,
+      "lastTimestamp": 1781280000,
+      "rows": [
+        {
+          "noti_id": 1,
+          "contents": "알림",
+          "timestamp": 1781280000
+        }
+      ]
+    },
+    "outside": 0,
+    "payment": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "code": 200,
+  "message": "",
+  "error_parameters": {},
+  "rest_of_api": 4988,
+  "results": {
+    "reports": [
+      {
+        "title": "sample"
+      }
+    ],
+    "rows": [
+      {
+        "entry_id": "e1",
+        "entry_date": 20260612,
+        "item": "테스트",
+        "money": 1000,
+        "total": "1,000",
+        "attachments": []
+      }
+    ]
+  }
+}
