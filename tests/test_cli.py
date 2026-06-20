@@ -66,6 +66,38 @@ def test_main_without_args_shows_help_without_traceback(capsys: pytest.CaptureFi
     assert captured.err == ""
 
 
+def test_main_click_error_shows_message_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["--config", str(tmp_path / "config.json"), "profile", "show"])
+    captured = capsys.readouterr()
+
+    assert exit_code != 0
+    assert captured.out == ""
+    assert "Profile not found: default" in captured.err
+    assert "Invalid value" not in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_main_auth_error_shows_message_without_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    exit_code = main(["--config", str(tmp_path / "config.json"), "sections", "list"])
+    captured = capsys.readouterr()
+
+    assert exit_code != 0
+    assert captured.out == ""
+    assert "Authentication is required" in captured.err
+    assert "Invalid value" not in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_help_exposes_resource_command_groups() -> None:
     result = runner.invoke(app, ["--help"])
 

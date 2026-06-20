@@ -10,7 +10,7 @@ from typing import Annotated, Literal, Protocol, TypedDict, TypeVar, cast
 
 import typer
 from pydantic import TypeAdapter, ValidationError
-from typer._click.exceptions import NoArgsIsHelpError
+from typer._click.exceptions import ClickException, NoArgsIsHelpError
 
 from whooing import WhooingClient, __version__
 from whooing._pydantic_models.base import WhooingEnvelope
@@ -143,6 +143,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return int(exc.exit_code)
     except NoArgsIsHelpError:
         return 0
+    except ClickException as exc:
+        exc.show()
+        return int(exc.exit_code)
     except WhooingError as exc:
         typer.echo(render_output(render_error(exc), "json"), err=True)
         return 1
@@ -1520,7 +1523,7 @@ def profile_set(
     ] = None,
 ) -> None:
     if api_key is None and access_token is None:
-        raise typer.BadParameter("Provide at least one of --api-key or --access-token.")
+        raise ClickException("Provide at least one of --api-key or --access-token.")
     state = _state(ctx)
     config = set_profile(
         load_config(state.config_path),
@@ -1537,7 +1540,7 @@ def profile_show(ctx: typer.Context) -> None:
     state = _state(ctx)
     profile = load_config(state.config_path).profiles.get(state.profile)
     if profile is None:
-        raise typer.BadParameter(f"Profile not found: {state.profile}")
+        raise ClickException(f"Profile not found: {state.profile}")
     _echo_payload(
         ctx,
         {
@@ -1601,7 +1604,7 @@ def _client_from_state(state: CliState) -> Iterator[WhooingClient]:
 
 def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
     if state.api_key is not None and state.access_token is not None:
-        raise typer.BadParameter("Provide only one of --api-key or --access-token.")
+        raise ClickException("Provide only one of --api-key or --access-token.")
     if state.api_key is not None:
         return {"api_key": state.api_key}
     if state.access_token is not None:
@@ -1610,7 +1613,7 @@ def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
     env_api_key = os.environ.get("WHOOING_API_KEY")
     env_access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
     if env_api_key is not None and env_access_token is not None:
-        raise typer.BadParameter("Set only one of WHOOING_API_KEY or WHOOING_ACCESS_TOKEN.")
+        raise ClickException("Set only one of WHOOING_API_KEY or WHOOING_ACCESS_TOKEN.")
     if env_api_key is not None:
         return {"api_key": env_api_key}
     if env_access_token is not None:
@@ -1623,7 +1626,7 @@ def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
         if profile.api_key is not None:
             return {"api_key": profile.api_key}
 
-    raise typer.BadParameter(
+    raise ClickException(
         "Authentication is required. Provide --api-key, --access-token, environment variables, "
         "or a saved profile."
     )
