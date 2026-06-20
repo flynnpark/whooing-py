@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from whooing.auth import OAuth1RequestToken, OAuth2Token
-from whooing.cli import app
+from whooing.cli import app, main
 from whooing.types import JsonObject, RequestData
 
 runner = CliRunner()
@@ -54,6 +54,16 @@ def test_version_option_outputs_package_version() -> None:
 
     assert result.exit_code == 0
     assert result.stdout == "whooing-py 0.1.0\n"
+
+
+def test_main_without_args_shows_help_without_traceback(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main([])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Usage: whooing" in captured.out
+    assert "Traceback" not in captured.out
+    assert captured.err == ""
 
 
 def test_help_exposes_resource_command_groups() -> None:

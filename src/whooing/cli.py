@@ -10,6 +10,7 @@ from typing import Annotated, Literal, Protocol, TypedDict, TypeVar, cast
 
 import typer
 from pydantic import TypeAdapter, ValidationError
+from typer._click.exceptions import NoArgsIsHelpError
 
 from whooing import WhooingClient, __version__
 from whooing._pydantic_models.base import WhooingEnvelope
@@ -140,6 +141,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except typer.Exit as exc:
         return int(exc.exit_code)
+    except NoArgsIsHelpError:
+        return 0
     except WhooingError as exc:
         typer.echo(render_output(render_error(exc), "json"), err=True)
         return 1
