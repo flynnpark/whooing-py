@@ -221,6 +221,21 @@ with WhooingClient(
 기본값은 재시도하지 않습니다. `RetryPolicy`를 명시한 경우에만 HTTP 429와 일시적인 5xx
 응답을 제한된 횟수로 다시 시도합니다.
 
+## CLI
+
+초기 CLI는 추가 런타임 의존성 없이 OAuth 2.0 PKCE 인증 URL 생성을 제공합니다.
+
+```sh
+whooing auth oauth2-url \
+  --client-id app_id \
+  --redirect-uri http://localhost/callback \
+  --scope read \
+  --scope write
+```
+
+CLI 확장 방향과 라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로
+관리합니다.
+
 ## 리소스 구성
 
 - `client.users`: 사용자 정보, 사용자 로그, 포인트 로그
