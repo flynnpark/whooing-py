@@ -40,6 +40,9 @@ Documentation = "https://whooing.com/api/docs"
 Issues = "https://github.com/flynnpark/whooing-py/issues"
 Repository = "https://github.com/flynnpark/whooing-py"
 
+[project.scripts]
+whooing = "whooing.cli:main"
+
 [dependency-groups]
 dev = [
   "mypy>=1.15",
