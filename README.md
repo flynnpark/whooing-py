@@ -223,7 +223,8 @@ with WhooingClient(
 
 ## CLI
 
-초기 CLI는 추가 런타임 의존성 없이 OAuth 2.0 PKCE 인증 URL 생성을 제공합니다.
+CLI는 Typer 기반으로 제공되며, 프로필 저장, OAuth 헬퍼, 범용 API 요청, 주요 읽기 API
+명령을 지원합니다.
 
 ```sh
 whooing auth oauth2-url \
@@ -231,6 +232,20 @@ whooing auth oauth2-url \
   --redirect-uri http://localhost/callback \
   --scope read \
   --scope write
+```
+
+프로필 저장:
+
+```sh
+whooing --profile default profile set --api-key 발급된_인증키
+whooing --profile default sections list
+```
+
+직접 API 경로 호출:
+
+```sh
+whooing --api-key 발급된_인증키 api request GET sections.json
+whooing --api-key 발급된_인증키 --output table accounts list --section-id s123
 ```
 
 CLI 확장 방향과 라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로
