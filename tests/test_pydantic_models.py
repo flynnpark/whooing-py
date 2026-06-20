@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import whooing.pydantic_models as pydantic_models
 from whooing.pydantic_models import (
     Account,
     AccountExistenceResponse,
@@ -43,6 +44,17 @@ from whooing.pydantic_models import (
     WhooingSuccessResponse,
 )
 from whooing.response import parse_api_response
+
+
+def test_pydantic_model_exports_are_consistent() -> None:
+    exported_names = set(pydantic_models.__all__)
+    public_names = {
+        name for name in vars(pydantic_models) if not name.startswith("_") and name != "annotations"
+    }
+
+    assert len(exported_names) == len(pydantic_models.__all__)
+    assert exported_names == public_names
+    assert all(hasattr(pydantic_models, name) for name in exported_names)
 
 
 def test_user_response_model_parses_documented_shape() -> None:
