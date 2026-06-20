@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+import os
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypedDict
 
 import typer
 
-from whooing import __version__
+from whooing import WhooingClient, __version__
 from whooing.auth import (
     AppAuthClient,
     OAuth1AccessToken,
@@ -27,13 +30,15 @@ from whooing.cli_config import (
 )
 from whooing.cli_output import render_error, render_output
 from whooing.exceptions import WhooingError
-from whooing.types import JsonObject, JsonValue
+from whooing.types import JsonObject, JsonValue, RequestData, RequestValue
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True)
 auth_app = typer.Typer(no_args_is_help=True, help="Authentication helpers")
 profile_app = typer.Typer(no_args_is_help=True, help="Manage local CLI profiles")
+api_app = typer.Typer(no_args_is_help=True, help="Call Whooing API paths")
 app.add_typer(auth_app, name="auth")
 app.add_typer(profile_app, name="profile")
+app.add_typer(api_app, name="api")
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +46,14 @@ class CliState:
     config_path: Path
     profile: str
     output: str
+    api_key: str | None
+    access_token: str | None
+    base_url: str
+
+
+class _ClientAuthKwargs(TypedDict, total=False):
+    api_key: str
+    access_token: str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -77,6 +90,15 @@ def _root(
         Literal["json", "table", "csv"],
         typer.Option("--output", help="Output format."),
     ] = "json",
+    api_key: Annotated[str | None, typer.Option("--api-key", help="Whooing API key.")] = None,
+    access_token: Annotated[
+        str | None,
+        typer.Option("--access-token", help="OAuth bearer access token."),
+    ] = None,
+    base_url: Annotated[
+        str,
+        typer.Option("--base-url", help="Whooing API base URL."),
+    ] = "https://whooing.com/api/",
 ) -> None:
     if version:
         typer.echo(f"whooing-py {__version__}")
@@ -85,6 +107,9 @@ def _root(
         config_path=config_path or default_config_path(),
         profile=profile,
         output=output,
+        api_key=api_key,
+        access_token=access_token,
+        base_url=base_url,
     )
 
 
@@ -241,6 +266,33 @@ def onetime_token(
     _echo_payload(ctx, _oauth1_access_token_payload(access_token))
 
 
+@api_app.command("request")
+def api_request(
+    ctx: typer.Context,
+    method: Annotated[
+        Literal["GET", "POST", "PUT", "DELETE"],
+        typer.Argument(help="HTTP method."),
+    ],
+    path: Annotated[str, typer.Argument(help="API path, for example sections.json.")],
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
+    ] = None,
+    data: Annotated[
+        list[str] | None,
+        typer.Option("--data", "-d", help="Form field as key=value. Repeatable."),
+    ] = None,
+) -> None:
+    with _client_from_state(_state(ctx)) as client:
+        response = client.request(
+            method,
+            path,
+            params=_parse_pairs(param),
+            data=_parse_pairs(data),
+        )
+    _echo_payload(ctx, response.raw)
+
+
 @profile_app.command("set")
 def profile_set(
     ctx: typer.Context,
@@ -303,6 +355,69 @@ def _state(ctx: typer.Context) -> CliState:
 
 def _echo_payload(ctx: typer.Context, payload: JsonValue) -> None:
     typer.echo(render_output(payload, _state(ctx).output))
+
+
+@contextmanager
+def _client_from_state(state: CliState) -> Iterator[WhooingClient]:
+    auth_kwargs = _auth_kwargs(state)
+    with WhooingClient(base_url=state.base_url, **auth_kwargs) as client:
+        yield client
+
+
+def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
+    if state.api_key is not None and state.access_token is not None:
+        raise typer.BadParameter("Provide only one of --api-key or --access-token.")
+    if state.api_key is not None:
+        return {"api_key": state.api_key}
+    if state.access_token is not None:
+        return {"access_token": state.access_token}
+
+    env_api_key = os.environ.get("WHOOING_API_KEY")
+    env_access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
+    if env_api_key is not None and env_access_token is not None:
+        raise typer.BadParameter("Set only one of WHOOING_API_KEY or WHOOING_ACCESS_TOKEN.")
+    if env_api_key is not None:
+        return {"api_key": env_api_key}
+    if env_access_token is not None:
+        return {"access_token": env_access_token}
+
+    profile = load_config(state.config_path).profiles.get(state.profile)
+    if profile is not None:
+        if profile.access_token is not None:
+            return {"access_token": profile.access_token}
+        if profile.api_key is not None:
+            return {"api_key": profile.api_key}
+
+    raise typer.BadParameter(
+        "Authentication is required. Provide --api-key, --access-token, environment variables, "
+        "or a saved profile."
+    )
+
+
+def _parse_pairs(values: list[str] | None) -> RequestData | None:
+    if values is None:
+        return None
+    data: dict[str, RequestValue] = {}
+    for value in values:
+        key, separator, raw = value.partition("=")
+        if not separator or not key:
+            raise typer.BadParameter(f"Expected key=value: {value}")
+        data[key] = _parse_request_value(raw)
+    return data
+
+
+def _parse_request_value(value: str) -> RequestValue:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return value
+    if parsed is None or isinstance(parsed, str | int | float | bool):
+        return parsed
+    if isinstance(parsed, list) and all(
+        item is None or isinstance(item, str | int | float | bool) for item in parsed
+    ):
+        return parsed
+    return value
 
 
 def _oauth2_token_payload(token: OAuth2Token) -> JsonObject:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlparse
@@ -10,7 +11,7 @@ from typer.testing import CliRunner
 
 from whooing.auth import OAuth1RequestToken, OAuth2Token
 from whooing.cli import app
-from whooing.types import JsonObject
+from whooing.types import JsonObject, RequestData
 
 runner = CliRunner()
 
@@ -228,3 +229,62 @@ def test_oauth1_request_token_command_outputs_authorization_url(
     assert result.exit_code == 0
     assert payload["token"] == "request-token"
     assert payload["authorization_url"] == "https://authorize.example?token=request-token"
+
+
+def test_api_request_command_uses_auth_and_parses_pairs(monkeypatch: pytest.MonkeyPatch) -> None:
+    @dataclass(frozen=True, slots=True)
+    class FakeResponse:
+        raw: JsonObject
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://api.example/"
+            assert api_key == "secret"
+            assert access_token is None
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            *,
+            params: RequestData | None = None,
+            data: RequestData | None = None,
+        ) -> FakeResponse:
+            assert method == "GET"
+            assert path == "sections.json"
+            assert params == {"limit": 10}
+            assert data is None
+            return FakeResponse(raw={"code": 200, "results": [{"section_id": "s1"}]})
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        [
+            "--api-key",
+            "secret",
+            "--base-url",
+            "https://api.example/",
+            "api",
+            "request",
+            "GET",
+            "sections.json",
+            "--param",
+            "limit=10",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["results"] == [{"section_id": "s1"}]
