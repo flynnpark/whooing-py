@@ -36,11 +36,13 @@ class WhooingAPIError(WhooingError):
         code: int,
         rest_of_api: int | None,
         error_parameters: Mapping[str, JsonValue],
+        http_status_code: int | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.rest_of_api = rest_of_api
         self.error_parameters = dict(error_parameters)
+        self.http_status_code = http_status_code
 
 
 class WhooingAuthError(WhooingAPIError):
@@ -57,3 +59,22 @@ class WhooingOAuthError(WhooingError):
 
 class WhooingRateLimitError(WhooingAPIError):
     """Raised when the API quota or short-term request limit is exceeded."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: int,
+        rest_of_api: int | None,
+        error_parameters: Mapping[str, JsonValue],
+        http_status_code: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            code=code,
+            rest_of_api=rest_of_api,
+            error_parameters=error_parameters,
+            http_status_code=http_status_code,
+        )
+        self.retry_after = retry_after

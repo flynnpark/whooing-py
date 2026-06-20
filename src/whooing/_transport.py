@@ -94,6 +94,8 @@ def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
             code=429,
             rest_of_api=None,
             error_parameters={},
+            http_status_code=response.status_code,
+            retry_after=_parse_retry_after(response.headers.get("Retry-After")),
         )
 
     if response.status_code >= 400:
@@ -113,3 +115,12 @@ def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
         ) from exc
 
     return parse_api_response(payload)
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None

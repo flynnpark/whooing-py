@@ -55,8 +55,10 @@ def test_api_error_maps_auth_code() -> None:
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
 
-    with pytest.raises(WhooingAuthError):
+    with pytest.raises(WhooingAuthError) as exc_info:
         client.get("user.json")
+
+    assert exc_info.value.http_status_code is None
 
 
 def test_api_error_maps_rate_limit_code() -> None:
@@ -79,12 +81,15 @@ def test_api_error_maps_rate_limit_code() -> None:
 
 def test_http_429_raises_rate_limit_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(429, text="Too Many Requests")
+        return httpx.Response(429, headers={"Retry-After": "3"}, text="Too Many Requests")
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
 
-    with pytest.raises(WhooingRateLimitError):
+    with pytest.raises(WhooingRateLimitError) as exc_info:
         client.get("user.json")
+
+    assert exc_info.value.http_status_code == 429
+    assert exc_info.value.retry_after == 3.0
 
 
 def test_http_error_raises_response_error() -> None:
