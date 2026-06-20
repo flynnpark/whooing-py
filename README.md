@@ -27,11 +27,7 @@ asdf install
 uv sync --dev
 ```
 
-Pydantic 응답 파싱 헬퍼까지 사용하려면 optional extra를 포함해 설치합니다.
-
-```sh
-uv sync --extra pydantic --dev
-```
+CLI와 응답 검증 경로가 Pydantic 모델을 사용하므로 `pydantic`은 기본 의존성입니다.
 
 ## 개발
 
@@ -165,9 +161,8 @@ with WhooingClient(api_key="발급된_인증키") as client:
 ```
 
 단일 객체 응답은 `response.parse_results(Model)`로, 전체 API 응답은
-`response.parse(ResponseModel)`로 검증할 수 있습니다. 이 기능은 `pydantic` extra를
-설치한 사용자에게만 제공되며, 기본 설치 사용자에게 Pydantic 의존성을 강제하지 않습니다.
-공식 리소스별 모델은 `whooing.pydantic_models`에 모아 두었습니다.
+`response.parse(ResponseModel)`로 검증할 수 있습니다. 공식 리소스별 모델은
+`whooing.pydantic_models`에 모아 두었습니다.
 
 공통 응답 규칙까지 엄밀하게 검증하려면 strict envelope 모델을 사용할 수 있습니다.
 
@@ -223,8 +218,9 @@ with WhooingClient(
 
 ## CLI
 
-CLI는 Typer 기반으로 제공되며, 프로필 저장, OAuth 헬퍼, 범용 API 요청, 주요 읽기 API
-명령을 지원합니다.
+CLI는 Typer 기반으로 제공되며, 프로필 저장, OAuth 헬퍼, 범용 API 요청, SDK 리소스
+명령을 지원합니다. CLI 경계에서는 입력 payload를 Pydantic으로 검증하고, 전용 명령의
+API 응답은 리소스별 Pydantic 응답 모델로 검증한 뒤 출력합니다.
 
 ```sh
 whooing auth oauth2-url \
@@ -246,6 +242,15 @@ whooing --profile default sections list
 ```sh
 whooing --api-key 발급된_인증키 api request GET sections.json
 whooing --api-key 발급된_인증키 --output table accounts list --section-id s123
+whooing --api-key 발급된_인증키 entries create \
+  --section-id s123 \
+  --field entry_date=20260620 \
+  --field l_account=expenses \
+  --field l_account_id=x1 \
+  --field r_account=assets \
+  --field r_account_id=x2 \
+  --field item=커피 \
+  --field money=5000
 ```
 
 CLI 확장 방향과 라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로
