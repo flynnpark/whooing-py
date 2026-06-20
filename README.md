@@ -39,6 +39,7 @@ uv sync --extra pydantic --dev
 uv run ruff check .
 uv run mypy src
 uv run pytest
+uv build
 ```
 
 실제 후잉 API 통합 테스트는 환경 변수가 있을 때만 실행됩니다.
@@ -242,6 +243,7 @@ Pydantic 헬퍼로 검증하는 방식을 택했습니다.
 추가하는 것을 기본 방향으로 합니다.
 
 세부 구현 현황은 [API 구현 커버리지](docs/API_COVERAGE.md)를 기준으로 관리합니다.
+릴리스 절차는 [릴리스 체크리스트](docs/RELEASE.md)를 따릅니다.
 
 ## 설계 메모
 
