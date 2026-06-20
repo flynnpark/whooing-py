@@ -20,13 +20,13 @@ class RetryPolicy:
 
     def delay_for(self, response: httpx.Response, attempt: int) -> float:
         if self.respect_retry_after:
-            retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+            retry_after = parse_retry_after(response.headers.get("Retry-After"))
             if retry_after is not None:
                 return retry_after
         return self.backoff_seconds * attempt
 
 
-def _parse_retry_after(value: str | None) -> float | None:
+def parse_retry_after(value: str | None) -> float | None:
     if value is None:
         return None
     try:

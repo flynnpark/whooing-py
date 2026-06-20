@@ -92,6 +92,18 @@ def test_http_429_raises_rate_limit_error() -> None:
     assert exc_info.value.retry_after == 3.0
 
 
+def test_http_429_ignores_invalid_retry_after() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"Retry-After": "-1"}, text="Too Many Requests")
+
+    client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(WhooingRateLimitError) as exc_info:
+        client.get("user.json")
+
+    assert exc_info.value.retry_after is None
+
+
 def test_http_error_raises_response_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="Server Error")

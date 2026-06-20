@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from whooing import AsyncWhooingClient, RetryPolicy, WhooingClient, WhooingRateLimitError
+from whooing.retry import parse_retry_after
 
 
 def test_sync_client_retries_rate_limit_response() -> None:
@@ -79,3 +80,7 @@ def test_retry_policy_uses_retry_after_header() -> None:
     response = httpx.Response(429, headers={"Retry-After": "3"})
 
     assert policy.delay_for(response, 1) == 3.0
+
+
+def test_retry_after_parser_rejects_negative_values() -> None:
+    assert parse_retry_after("-1") is None

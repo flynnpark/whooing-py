@@ -8,7 +8,7 @@ import httpx
 from whooing.auth import APIKeyAuth, Auth, BearerTokenAuth
 from whooing.exceptions import WhooingRateLimitError, WhooingResponseError, WhooingTransportError
 from whooing.response import ApiResponse, parse_api_response
-from whooing.retry import RetryPolicy
+from whooing.retry import RetryPolicy, parse_retry_after
 from whooing.types import JsonObject, JsonValue, RequestData, RequestValue
 
 HttpMethod = Literal["GET", "POST", "PUT", "DELETE"]
@@ -95,7 +95,7 @@ def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
             rest_of_api=None,
             error_parameters={},
             http_status_code=response.status_code,
-            retry_after=_parse_retry_after(response.headers.get("Retry-After")),
+            retry_after=parse_retry_after(response.headers.get("Retry-After")),
         )
 
     if response.status_code >= 400:
@@ -115,12 +115,3 @@ def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
         ) from exc
 
     return parse_api_response(payload)
-
-
-def _parse_retry_after(value: str | None) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
