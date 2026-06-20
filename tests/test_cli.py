@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlparse
 
@@ -49,3 +50,32 @@ def test_version_option_outputs_package_version() -> None:
 
     assert result.exit_code == 0
     assert result.stdout == "whooing-py 0.1.0\n"
+
+
+def test_profile_commands_store_and_mask_credentials(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+
+    set_result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "--profile",
+            "work",
+            "profile",
+            "set",
+            "--api-key",
+            "abcd1234secret",
+        ],
+    )
+    show_result = runner.invoke(
+        app,
+        ["--config", str(config_path), "--profile", "work", "profile", "show"],
+    )
+    list_result = runner.invoke(app, ["--config", str(config_path), "profile", "list"])
+
+    assert set_result.exit_code == 0
+    assert show_result.exit_code == 0
+    assert list_result.exit_code == 0
+    assert json.loads(show_result.stdout)["api_key"] == "abcd...cret"
+    assert json.loads(list_result.stdout) == {"profiles": ["work"]}
