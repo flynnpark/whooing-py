@@ -263,8 +263,8 @@ whooing --api-key 발급된_인증키 entries create \
   --field money=5000
 ```
 
-CLI 확장 방향과 라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로
-관리합니다.
+목적별 CLI 사용법은 [CLI 사용 가이드](docs/CLI_USAGE.md)를 참고합니다. CLI 확장 방향과
+라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로 관리합니다.
 
 ## 리소스 구성
 
@@ -279,9 +279,8 @@ CLI 확장 방향과 라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESI
 ## 커버리지
 
 현재 구현은 공식 문서의 인증 플로우와 주요 API 경로를 호출할 수 있는 래퍼를 제공합니다.
-다만 모든 응답 스키마를 Pydantic 모델로 고정하지는 않았습니다. 후잉 API 응답은 리소스별
-형태가 넓기 때문에 기본값은 `ApiResponse[JsonValue]`이고, 필요한 사용자가 optional
-Pydantic 헬퍼로 검증하는 방식을 택했습니다.
+후잉 API 응답은 리소스별 형태가 넓기 때문에 기본 클라이언트 응답은 `ApiResponse[JsonValue]`로
+원본 JSON을 보존하고, 필요한 사용자가 Pydantic 헬퍼로 검증하는 방식을 택했습니다.
 
 문서의 특정 엔드포인트 래퍼가 빠져 있더라도 `client.request(...)`와
 `async_client.request(...)`로 직접 호출할 수 있습니다. 누락 래퍼는 테스트 가능한 단위로
@@ -300,5 +299,4 @@ Pydantic 헬퍼로 검증하는 방식을 택했습니다.
   버리지 않고 보존합니다.
 - 동기/비동기 클라이언트가 같은 리소스 경로 생성 로직을 공유하도록 구성합니다.
 - 재시도는 기본 동작으로 강제하지 않고, `RetryPolicy`를 명시한 경우에만 적용합니다.
-- Pydantic은 optional extra로만 제공해, 강한 응답 모델링을 원하는 사용자와 가벼운 기본
-  설치를 원하는 사용자를 모두 지원합니다.
+- Pydantic은 응답 검증과 CLI 요청 검증에 사용합니다.
