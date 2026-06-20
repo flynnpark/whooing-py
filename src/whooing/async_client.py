@@ -51,13 +51,13 @@ class AsyncWhooingClient:
             headers={"Accept": "application/json", **dict(resolved_auth.headers())},
         )
         self._retry_policy = retry_policy
-        self.users = UsersResource[AsyncApiResponse](self)
-        self.sections = SectionsResource[AsyncApiResponse](self)
-        self.accounts = AccountsResource[AsyncApiResponse](self)
-        self.entries = EntriesResource[AsyncApiResponse](self)
-        self.budgets = BudgetResource[AsyncApiResponse](self)
-        self.reports = ReportsResource[AsyncApiResponse](self)
-        self.extras = ExtrasResource[AsyncApiResponse](self)
+        self.users: UsersResource[AsyncApiResponse] = UsersResource(self)
+        self.sections: SectionsResource[AsyncApiResponse] = SectionsResource(self)
+        self.accounts: AccountsResource[AsyncApiResponse] = AccountsResource(self)
+        self.entries: EntriesResource[AsyncApiResponse] = EntriesResource(self)
+        self.budgets: BudgetResource[AsyncApiResponse] = BudgetResource(self)
+        self.reports: ReportsResource[AsyncApiResponse] = ReportsResource(self)
+        self.extras: ExtrasResource[AsyncApiResponse] = ExtrasResource(self)
 
     async def close(self) -> None:
         await self._client.aclose()
