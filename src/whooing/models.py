@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from whooing.types import JsonObject, RequestData, RequestValue
+from whooing.types import JsonObject, JsonValue, RequestData, RequestValue
 
 AccountType = Literal["assets", "liabilities", "capital", "expenses", "income"]
 
@@ -261,15 +261,12 @@ class EntryInput:
         )
 
     def to_json_object(self) -> JsonObject:
-        data: JsonObject = {
-            "entry_date": self.entry_date,
-            "l_account": self.left_account,
-            "l_account_id": self.left_account_id,
-            "r_account": self.right_account,
-            "r_account_id": self.right_account_id,
-            "item": self.item,
-            "money": self.money,
-        }
-        if self.memo is not None:
-            data["memo"] = self.memo
-        return data
+        return {key: _json_value(value) for key, value in self.to_request_data().items()}
+
+
+def _json_value(value: RequestValue) -> JsonValue:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, Sequence):
+        return [_json_value(item) for item in value]
+    return value
