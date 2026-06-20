@@ -12,6 +12,20 @@ license = "MIT"
 authors = [
   { name = "flynn" }
 ]
+keywords = ["whooing", "api", "client", "accounting", "finance"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
 dependencies = [
   "httpx>=0.28,<1",
 ]
@@ -23,6 +37,8 @@ pydantic = [
 
 [project.urls]
 Documentation = "https://whooing.com/api/docs"
+Issues = "https://github.com/flynnpark/whooing-py/issues"
+Repository = "https://github.com/flynnpark/whooing-py"
 
 [dependency-groups]
 dev = [
