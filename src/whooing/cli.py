@@ -8,7 +8,15 @@ from typing import Annotated, Literal
 import typer
 
 from whooing import __version__
-from whooing.auth import build_authorization_url, create_pkce_challenge
+from whooing.auth import (
+    AppAuthClient,
+    OAuth1AccessToken,
+    OAuth1RequestToken,
+    OAuth2Token,
+    OAuth2TokenClient,
+    build_authorization_url,
+    create_pkce_challenge,
+)
 from whooing.cli_config import (
     default_config_path,
     load_config,
@@ -107,6 +115,132 @@ def oauth2_url(
     _echo_payload(ctx, payload)
 
 
+@auth_app.command("exchange-code")
+def exchange_code(
+    ctx: typer.Context,
+    client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
+    code: Annotated[str, typer.Option("--code", help="OAuth authorization code.")],
+    redirect_uri: Annotated[str, typer.Option("--redirect-uri", help="OAuth callback URI.")],
+    code_verifier: Annotated[
+        str | None,
+        typer.Option("--code-verifier", help="PKCE code verifier."),
+    ] = None,
+    token_endpoint: Annotated[
+        str,
+        typer.Option("--token-endpoint", help="OAuth token endpoint."),
+    ] = "https://whooing.com/oauth2/token",
+) -> None:
+    with OAuth2TokenClient(token_endpoint=token_endpoint) as client:
+        token = client.exchange_code(
+            client_id=client_id,
+            code=code,
+            redirect_uri=redirect_uri,
+            code_verifier=code_verifier,
+        )
+    _echo_payload(ctx, _oauth2_token_payload(token))
+
+
+@auth_app.command("refresh")
+def refresh_token(
+    ctx: typer.Context,
+    client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
+    refresh_token_value: Annotated[
+        str,
+        typer.Option("--refresh-token", help="OAuth refresh token."),
+    ],
+    token_endpoint: Annotated[
+        str,
+        typer.Option("--token-endpoint", help="OAuth token endpoint."),
+    ] = "https://whooing.com/oauth2/token",
+) -> None:
+    with OAuth2TokenClient(token_endpoint=token_endpoint) as client:
+        token = client.refresh(client_id=client_id, refresh_token=refresh_token_value)
+    _echo_payload(ctx, _oauth2_token_payload(token))
+
+
+@auth_app.command("revoke")
+def revoke_token(
+    ctx: typer.Context,
+    token: Annotated[str, typer.Option("--token", help="OAuth token to revoke.")],
+    revoke_endpoint: Annotated[
+        str,
+        typer.Option("--revoke-endpoint", help="OAuth revoke endpoint."),
+    ] = "https://whooing.com/oauth2/revoke",
+) -> None:
+    with OAuth2TokenClient(revoke_endpoint=revoke_endpoint) as client:
+        payload = client.revoke(token)
+    _echo_payload(ctx, payload)
+
+
+@auth_app.command("oauth1-request-token")
+def oauth1_request_token(
+    ctx: typer.Context,
+    app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
+    app_secret: Annotated[str, typer.Option("--app-secret", help="Whooing app secret.")],
+    callback_uri: Annotated[
+        str | None,
+        typer.Option("--callback-uri", help="OAuth callback URI."),
+    ] = None,
+    base_url: Annotated[
+        str,
+        typer.Option("--base-url", help="Whooing app auth base URL."),
+    ] = "https://whooing.com/app_auth/",
+) -> None:
+    with AppAuthClient(base_url=base_url) as client:
+        token = client.request_token(
+            app_id=app_id,
+            app_secret=app_secret,
+            callback_uri=callback_uri,
+        )
+        authorization_url = client.build_authorization_url(token=token.token)
+    _echo_payload(
+        ctx,
+        {**_oauth1_request_token_payload(token), "authorization_url": authorization_url},
+    )
+
+
+@auth_app.command("oauth1-access-token")
+def oauth1_access_token(
+    ctx: typer.Context,
+    app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
+    app_secret: Annotated[str, typer.Option("--app-secret", help="Whooing app secret.")],
+    token: Annotated[str, typer.Option("--token", help="OAuth request token.")],
+    pin: Annotated[str, typer.Option("--pin", help="OAuth verifier PIN.")],
+    base_url: Annotated[
+        str,
+        typer.Option("--base-url", help="Whooing app auth base URL."),
+    ] = "https://whooing.com/app_auth/",
+) -> None:
+    with AppAuthClient(base_url=base_url) as client:
+        access_token = client.access_token(
+            app_id=app_id,
+            app_secret=app_secret,
+            token=token,
+            pin=pin,
+        )
+    _echo_payload(ctx, _oauth1_access_token_payload(access_token))
+
+
+@auth_app.command("onetime")
+def onetime_token(
+    ctx: typer.Context,
+    app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
+    app_secret: Annotated[str, typer.Option("--app-secret", help="Whooing app secret.")],
+    onetime_pin: Annotated[str, typer.Option("--onetime-pin", help="Onetime PIN.")],
+    base_url: Annotated[
+        str,
+        typer.Option("--base-url", help="Whooing app auth base URL."),
+    ] = "https://whooing.com/app_auth/",
+) -> None:
+    with AppAuthClient(base_url=base_url) as client:
+        access_token = client.access_token_by_onetime(
+            app_id=app_id,
+            app_secret=app_secret,
+            onetime_pin=onetime_pin,
+        )
+    _echo_payload(ctx, _oauth1_access_token_payload(access_token))
+
+
 @profile_app.command("set")
 def profile_set(
     ctx: typer.Context,
@@ -169,3 +303,27 @@ def _state(ctx: typer.Context) -> CliState:
 
 def _echo_payload(ctx: typer.Context, payload: JsonValue) -> None:
     typer.echo(render_output(payload, _state(ctx).output))
+
+
+def _oauth2_token_payload(token: OAuth2Token) -> JsonObject:
+    return {
+        "access_token": token.access_token,
+        "token_type": token.token_type,
+        "expires_in": token.expires_in,
+        "refresh_token": token.refresh_token,
+        "scope": token.scope,
+        "raw": token.raw,
+    }
+
+
+def _oauth1_request_token_payload(token: OAuth1RequestToken) -> JsonObject:
+    return {"token": token.token, "raw": token.raw}
+
+
+def _oauth1_access_token_payload(token: OAuth1AccessToken) -> JsonObject:
+    return {
+        "token": token.token,
+        "token_secret": token.token_secret,
+        "user_id": token.user_id,
+        "raw": token.raw,
+    }

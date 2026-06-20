@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from typer.testing import CliRunner
 
+from whooing.auth import OAuth1RequestToken, OAuth2Token
 from whooing.cli import app
 from whooing.types import JsonObject
 
@@ -105,3 +107,124 @@ def test_profile_list_supports_table_output(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "profiles" in result.stdout
     assert "work" in result.stdout
+
+
+def test_exchange_code_command_outputs_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeOAuth2TokenClient:
+        def __init__(self, *, token_endpoint: str = "", revoke_endpoint: str = "") -> None:
+            self.token_endpoint = token_endpoint
+            self.revoke_endpoint = revoke_endpoint
+
+        def __enter__(self) -> FakeOAuth2TokenClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def exchange_code(
+            self,
+            *,
+            client_id: str,
+            code: str,
+            redirect_uri: str,
+            code_verifier: str | None = None,
+        ) -> OAuth2Token:
+            assert self.token_endpoint == "https://token.example"
+            assert client_id == "app"
+            assert code == "code"
+            assert redirect_uri == "http://localhost/callback"
+            assert code_verifier == "verifier"
+            return OAuth2Token(
+                access_token="access",
+                token_type="Bearer",
+                expires_in=3600,
+                refresh_token="refresh",
+                scope="read",
+                raw={"access_token": "access"},
+            )
+
+    monkeypatch.setattr("whooing.cli.OAuth2TokenClient", FakeOAuth2TokenClient)
+
+    result = runner.invoke(
+        app,
+        [
+            "auth",
+            "exchange-code",
+            "--client-id",
+            "app",
+            "--code",
+            "code",
+            "--redirect-uri",
+            "http://localhost/callback",
+            "--code-verifier",
+            "verifier",
+            "--token-endpoint",
+            "https://token.example",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["access_token"] == "access"
+
+
+def test_oauth1_request_token_command_outputs_authorization_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeAppAuthClient:
+        def __init__(self, *, base_url: str = "") -> None:
+            self.base_url = base_url
+
+        def __enter__(self) -> FakeAppAuthClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def request_token(
+            self,
+            *,
+            app_id: str,
+            app_secret: str,
+            callback_uri: str | None = None,
+        ) -> OAuth1RequestToken:
+            assert self.base_url == "https://app-auth.example/"
+            assert app_id == "app"
+            assert app_secret == "secret"
+            assert callback_uri == "http://localhost/callback"
+            return OAuth1RequestToken(token="request-token", raw={"token": "request-token"})
+
+        def build_authorization_url(
+            self,
+            *,
+            token: str,
+            callback_uri: str | None = None,
+            no_register: bool = False,
+        ) -> str:
+            assert token == "request-token"
+            assert callback_uri is None
+            assert no_register is False
+            return "https://authorize.example?token=request-token"
+
+    monkeypatch.setattr("whooing.cli.AppAuthClient", FakeAppAuthClient)
+
+    result = runner.invoke(
+        app,
+        [
+            "auth",
+            "oauth1-request-token",
+            "--app-id",
+            "app",
+            "--app-secret",
+            "secret",
+            "--callback-uri",
+            "http://localhost/callback",
+            "--base-url",
+            "https://app-auth.example/",
+        ],
+    )
+
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0
+    assert payload["token"] == "request-token"
+    assert payload["authorization_url"] == "https://authorize.example?token=request-token"
