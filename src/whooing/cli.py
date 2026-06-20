@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
@@ -18,6 +17,8 @@ from whooing.cli_config import (
     save_config,
     set_profile,
 )
+from whooing.cli_output import render_error, render_output
+from whooing.exceptions import WhooingError
 from whooing.types import JsonObject, JsonValue
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True)
@@ -31,10 +32,21 @@ app.add_typer(profile_app, name="profile")
 class CliState:
     config_path: Path
     profile: str
+    output: str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    app(args=list(argv) if argv is not None else None, prog_name="whooing")
+    try:
+        app(
+            args=list(argv) if argv is not None else None,
+            prog_name="whooing",
+            standalone_mode=False,
+        )
+    except typer.Exit as exc:
+        return int(exc.exit_code)
+    except WhooingError as exc:
+        typer.echo(render_output(render_error(exc), "json"), err=True)
+        return 1
     return 0
 
 
@@ -53,15 +65,24 @@ def _root(
         str,
         typer.Option("--profile", help="CLI profile name."),
     ] = "default",
+    output: Annotated[
+        Literal["json", "table", "csv"],
+        typer.Option("--output", help="Output format."),
+    ] = "json",
 ) -> None:
     if version:
         typer.echo(f"whooing-py {__version__}")
         raise typer.Exit()
-    ctx.obj = CliState(config_path=config_path or default_config_path(), profile=profile)
+    ctx.obj = CliState(
+        config_path=config_path or default_config_path(),
+        profile=profile,
+        output=output,
+    )
 
 
 @auth_app.command("oauth2-url")
 def oauth2_url(
+    ctx: typer.Context,
     client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
     redirect_uri: Annotated[str, typer.Option("--redirect-uri", help="OAuth callback URI.")],
     scope: Annotated[
@@ -83,7 +104,7 @@ def oauth2_url(
         "code_challenge": challenge.challenge,
         "code_challenge_method": challenge.method,
     }
-    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    _echo_payload(ctx, payload)
 
 
 @profile_app.command("set")
@@ -105,7 +126,7 @@ def profile_set(
         access_token=access_token,
     )
     save_config(state.config_path, config)
-    _echo_json({"profile": state.profile, "saved": True})
+    _echo_payload(ctx, {"profile": state.profile, "saved": True})
 
 
 @profile_app.command("show")
@@ -114,12 +135,13 @@ def profile_show(ctx: typer.Context) -> None:
     profile = load_config(state.config_path).profiles.get(state.profile)
     if profile is None:
         raise typer.BadParameter(f"Profile not found: {state.profile}")
-    _echo_json(
+    _echo_payload(
+        ctx,
         {
             "profile": state.profile,
             "api_key": mask_secret(profile.api_key),
             "access_token": mask_secret(profile.access_token),
-        }
+        },
     )
 
 
@@ -127,7 +149,7 @@ def profile_show(ctx: typer.Context) -> None:
 def profile_list(ctx: typer.Context) -> None:
     config = load_config(_state(ctx).config_path)
     profiles: list[JsonValue] = [name for name in sorted(config.profiles)]
-    _echo_json({"profiles": profiles})
+    _echo_payload(ctx, {"profiles": profiles})
 
 
 @profile_app.command("remove")
@@ -135,7 +157,7 @@ def profile_remove(ctx: typer.Context) -> None:
     state = _state(ctx)
     config = remove_profile(load_config(state.config_path), name=state.profile)
     save_config(state.config_path, config)
-    _echo_json({"profile": state.profile, "removed": True})
+    _echo_payload(ctx, {"profile": state.profile, "removed": True})
 
 
 def _state(ctx: typer.Context) -> CliState:
@@ -145,5 +167,5 @@ def _state(ctx: typer.Context) -> CliState:
     return ctx.obj
 
 
-def _echo_json(payload: JsonObject) -> None:
-    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+def _echo_payload(ctx: typer.Context, payload: JsonValue) -> None:
+    typer.echo(render_output(payload, _state(ctx).output))

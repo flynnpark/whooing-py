@@ -79,3 +79,29 @@ def test_profile_commands_store_and_mask_credentials(tmp_path: Path) -> None:
     assert list_result.exit_code == 0
     assert json.loads(show_result.stdout)["api_key"] == "abcd...cret"
     assert json.loads(list_result.stdout) == {"profiles": ["work"]}
+
+
+def test_profile_list_supports_table_output(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "--profile",
+            "work",
+            "profile",
+            "set",
+            "--api-key",
+            "secret",
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["--config", str(config_path), "--output", "table", "profile", "list"],
+    )
+
+    assert result.exit_code == 0
+    assert "profiles" in result.stdout
+    assert "work" in result.stdout
