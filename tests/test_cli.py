@@ -101,7 +101,26 @@ def test_main_auth_error_shows_message_without_traceback(
     assert "Traceback" not in captured.err
 
 
-def test_profile_set_loads_credentials_from_dotenv(
+def test_profile_set_requires_explicit_from_env_for_dotenv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = tmp_path / "config.json"
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("WHOOING_API_KEY=dotenv-secret\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    set_result = main(["--config", str(config_path), "profile", "set"])
+    captured = capsys.readouterr()
+
+    assert set_result != 0
+    assert "Provide --api-key, --access-token, or --from-env." in captured.err
+
+
+def test_profile_set_from_env_loads_credentials_from_dotenv(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -112,7 +131,7 @@ def test_profile_set_loads_credentials_from_dotenv(
     monkeypatch.delenv("WHOOING_API_KEY", raising=False)
     monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
 
-    set_result = main(["--config", str(config_path), "profile", "set"])
+    set_result = main(["--config", str(config_path), "profile", "set", "--from-env"])
     show_result = runner.invoke(app, ["--config", str(config_path), "profile", "show"])
 
     assert set_result == 0

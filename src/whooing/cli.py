@@ -1523,10 +1523,15 @@ def profile_set(
         str | None,
         typer.Option("--access-token", help="OAuth bearer access token."),
     ] = None,
+    from_env: Annotated[
+        bool,
+        typer.Option("--from-env", help="Store WHOOING_API_KEY or WHOOING_ACCESS_TOKEN."),
+    ] = False,
 ) -> None:
     resolved_api_key, resolved_access_token = _profile_credentials(
         api_key=api_key,
         access_token=access_token,
+        from_env=from_env,
     )
     state = _state(ctx)
     config = set_profile(
@@ -1610,9 +1615,15 @@ def _profile_credentials(
     *,
     api_key: str | None,
     access_token: str | None,
+    from_env: bool,
 ) -> tuple[str | None, str | None]:
+    if from_env and (api_key is not None or access_token is not None):
+        raise ClickException("Use --from-env without --api-key or --access-token.")
     if api_key is not None or access_token is not None:
         return api_key, access_token
+
+    if not from_env:
+        raise ClickException("Provide --api-key, --access-token, or --from-env.")
 
     env_api_key = os.environ.get("WHOOING_API_KEY")
     env_access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
