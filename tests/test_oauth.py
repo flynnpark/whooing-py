@@ -6,7 +6,12 @@ from urllib.parse import parse_qs
 import httpx
 import pytest
 
-from whooing import AsyncOAuth2TokenClient, OAuth2TokenClient, WhooingOAuthError
+from whooing import (
+    AsyncOAuth2TokenClient,
+    OAuth2TokenClient,
+    WhooingOAuthError,
+    WhooingResponseError,
+)
 
 
 def test_oauth2_exchange_code_posts_documented_form_fields() -> None:
@@ -58,6 +63,19 @@ def test_oauth2_error_payload_raises_oauth_error() -> None:
 
     assert exc_info.value.error == "invalid_grant"
     assert exc_info.value.description == "expired"
+
+
+def test_oauth2_non_json_http_error_raises_response_error() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="<html>Server Error</html>")
+
+    client = OAuth2TokenClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(WhooingResponseError) as exc_info:
+        client.refresh(client_id="app", refresh_token="refresh")
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.body == "<html>Server Error</html>"
 
 
 def test_async_oauth2_refresh() -> None:

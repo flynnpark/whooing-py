@@ -120,23 +120,18 @@ class OAuth2TokenClient:
         redirect_uri: str,
         code_verifier: str | None = None,
     ) -> OAuth2Token:
-        data: dict[str, str] = {
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        }
-        if code_verifier is not None:
-            data["code_verifier"] = code_verifier
-        return self._post_token(data)
+        return self._post_token(
+            _oauth2_authorization_code_data(
+                client_id=client_id,
+                code=code,
+                redirect_uri=redirect_uri,
+                code_verifier=code_verifier,
+            )
+        )
 
     def refresh(self, *, client_id: str, refresh_token: str) -> OAuth2Token:
         return self._post_token(
-            {
-                "grant_type": "refresh_token",
-                "client_id": client_id,
-                "refresh_token": refresh_token,
-            }
+            _oauth2_refresh_data(client_id=client_id, refresh_token=refresh_token)
         )
 
     def revoke(self, token: str) -> JsonObject:
@@ -179,10 +174,16 @@ class AppAuthClient:
         app_secret: str,
         callback_uri: str | None = None,
     ) -> OAuth1RequestToken:
-        params: dict[str, str] = {"app_id": app_id, "app_secret": app_secret}
-        if callback_uri is not None:
-            params["callbackuri"] = callback_uri
-        return _parse_oauth1_request_token(self._get_json("request_token", params))
+        return _parse_oauth1_request_token(
+            self._get_json(
+                "request_token",
+                _oauth1_request_token_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    callback_uri=callback_uri,
+                ),
+            )
+        )
 
     def build_authorization_url(
         self,
@@ -191,11 +192,11 @@ class AppAuthClient:
         callback_uri: str | None = None,
         no_register: bool = False,
     ) -> str:
-        params: dict[str, str] = {"token": token}
-        if callback_uri is not None:
-            params["callbackuri"] = callback_uri
-        if no_register:
-            params["no_register"] = "y"
+        params = _oauth1_authorization_params(
+            token=token,
+            callback_uri=callback_uri,
+            no_register=no_register,
+        )
         return str(self._client.base_url.join("authorize").copy_with(params=params))
 
     def access_token(
@@ -209,12 +210,12 @@ class AppAuthClient:
         return _parse_oauth1_access_token(
             self._get_json(
                 "access_token",
-                {
-                    "app_id": app_id,
-                    "app_secret": app_secret,
-                    "token": token,
-                    "pin": pin,
-                },
+                _oauth1_access_token_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    token=token,
+                    pin=pin,
+                ),
             )
         )
 
@@ -228,11 +229,11 @@ class AppAuthClient:
         return _parse_oauth1_access_token(
             self._get_json(
                 "access_token_by_onetime",
-                {
-                    "app_id": app_id,
-                    "app_secret": app_secret,
-                    "onetime_pin": onetime_pin,
-                },
+                _oauth1_onetime_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    onetime_pin=onetime_pin,
+                ),
             )
         )
 
@@ -274,23 +275,18 @@ class AsyncOAuth2TokenClient:
         redirect_uri: str,
         code_verifier: str | None = None,
     ) -> OAuth2Token:
-        data: dict[str, str] = {
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        }
-        if code_verifier is not None:
-            data["code_verifier"] = code_verifier
-        return await self._post_token(data)
+        return await self._post_token(
+            _oauth2_authorization_code_data(
+                client_id=client_id,
+                code=code,
+                redirect_uri=redirect_uri,
+                code_verifier=code_verifier,
+            )
+        )
 
     async def refresh(self, *, client_id: str, refresh_token: str) -> OAuth2Token:
         return await self._post_token(
-            {
-                "grant_type": "refresh_token",
-                "client_id": client_id,
-                "refresh_token": refresh_token,
-            }
+            _oauth2_refresh_data(client_id=client_id, refresh_token=refresh_token)
         )
 
     async def revoke(self, token: str) -> JsonObject:
@@ -336,10 +332,16 @@ class AsyncAppAuthClient:
         app_secret: str,
         callback_uri: str | None = None,
     ) -> OAuth1RequestToken:
-        params: dict[str, str] = {"app_id": app_id, "app_secret": app_secret}
-        if callback_uri is not None:
-            params["callbackuri"] = callback_uri
-        return _parse_oauth1_request_token(await self._get_json("request_token", params))
+        return _parse_oauth1_request_token(
+            await self._get_json(
+                "request_token",
+                _oauth1_request_token_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    callback_uri=callback_uri,
+                ),
+            )
+        )
 
     def build_authorization_url(
         self,
@@ -348,11 +350,11 @@ class AsyncAppAuthClient:
         callback_uri: str | None = None,
         no_register: bool = False,
     ) -> str:
-        params: dict[str, str] = {"token": token}
-        if callback_uri is not None:
-            params["callbackuri"] = callback_uri
-        if no_register:
-            params["no_register"] = "y"
+        params = _oauth1_authorization_params(
+            token=token,
+            callback_uri=callback_uri,
+            no_register=no_register,
+        )
         return str(self._client.base_url.join("authorize").copy_with(params=params))
 
     async def access_token(
@@ -366,12 +368,12 @@ class AsyncAppAuthClient:
         return _parse_oauth1_access_token(
             await self._get_json(
                 "access_token",
-                {
-                    "app_id": app_id,
-                    "app_secret": app_secret,
-                    "token": token,
-                    "pin": pin,
-                },
+                _oauth1_access_token_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    token=token,
+                    pin=pin,
+                ),
             )
         )
 
@@ -385,11 +387,11 @@ class AsyncAppAuthClient:
         return _parse_oauth1_access_token(
             await self._get_json(
                 "access_token_by_onetime",
-                {
-                    "app_id": app_id,
-                    "app_secret": app_secret,
-                    "onetime_pin": onetime_pin,
-                },
+                _oauth1_onetime_params(
+                    app_id=app_id,
+                    app_secret=app_secret,
+                    onetime_pin=onetime_pin,
+                ),
             )
         )
 
@@ -468,6 +470,12 @@ def _decode_oauth_json(response: httpx.Response) -> JsonObject:
     try:
         payload = cast(JsonObject, response.json())
     except ValueError as exc:
+        if response.status_code >= 400:
+            raise WhooingResponseError(
+                f"Whooing OAuth response failed with status {response.status_code}.",
+                status_code=response.status_code,
+                body=response.text,
+            ) from exc
         raise WhooingResponseError(
             "Whooing OAuth response is not valid JSON.",
             status_code=response.status_code,
@@ -493,6 +501,77 @@ def _decode_oauth_json(response: httpx.Response) -> JsonObject:
         )
 
     return payload
+
+
+def _oauth2_authorization_code_data(
+    *,
+    client_id: str,
+    code: str,
+    redirect_uri: str,
+    code_verifier: str | None,
+) -> dict[str, str]:
+    data: dict[str, str] = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "code": code,
+        "redirect_uri": redirect_uri,
+    }
+    if code_verifier is not None:
+        data["code_verifier"] = code_verifier
+    return data
+
+
+def _oauth2_refresh_data(*, client_id: str, refresh_token: str) -> dict[str, str]:
+    return {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "refresh_token": refresh_token,
+    }
+
+
+def _oauth1_request_token_params(
+    *,
+    app_id: str,
+    app_secret: str,
+    callback_uri: str | None,
+) -> dict[str, str]:
+    params: dict[str, str] = {"app_id": app_id, "app_secret": app_secret}
+    if callback_uri is not None:
+        params["callbackuri"] = callback_uri
+    return params
+
+
+def _oauth1_authorization_params(
+    *,
+    token: str,
+    callback_uri: str | None,
+    no_register: bool,
+) -> dict[str, str]:
+    params: dict[str, str] = {"token": token}
+    if callback_uri is not None:
+        params["callbackuri"] = callback_uri
+    if no_register:
+        params["no_register"] = "y"
+    return params
+
+
+def _oauth1_access_token_params(
+    *,
+    app_id: str,
+    app_secret: str,
+    token: str,
+    pin: str,
+) -> dict[str, str]:
+    return {"app_id": app_id, "app_secret": app_secret, "token": token, "pin": pin}
+
+
+def _oauth1_onetime_params(
+    *,
+    app_id: str,
+    app_secret: str,
+    onetime_pin: str,
+) -> dict[str, str]:
+    return {"app_id": app_id, "app_secret": app_secret, "onetime_pin": onetime_pin}
 
 
 def _parse_oauth2_token(payload: JsonObject) -> OAuth2Token:
