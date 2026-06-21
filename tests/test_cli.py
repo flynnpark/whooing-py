@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -15,6 +16,11 @@ from whooing.cli import app, main
 from whooing.types import JsonObject, RequestData
 
 runner = CliRunner()
+ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi(value: str) -> str:
+    return ANSI_PATTERN.sub("", value)
 
 
 def test_oauth2_url_command_outputs_pkce_payload() -> None:
@@ -59,10 +65,11 @@ def test_version_option_outputs_package_version() -> None:
 def test_main_without_args_shows_help_without_traceback(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = main([])
     captured = capsys.readouterr()
+    output = strip_ansi(captured.out)
 
     assert exit_code == 0
-    assert "Usage: whooing" in captured.out
-    assert "Traceback" not in captured.out
+    assert "Usage: whooing" in output
+    assert "Traceback" not in output
     assert captured.err == ""
 
 

@@ -7,6 +7,7 @@ import pytest
 from dotenv import load_dotenv
 
 from whooing import WhooingClient
+from whooing.exceptions import WhooingResponseError
 from whooing.pydantic_models import (
     AccountsResponse,
     EntriesResponse,
@@ -26,12 +27,21 @@ def require_env(name: str) -> str:
     return value
 
 
+def skip_unavailable_api(exc: WhooingResponseError) -> None:
+    if exc.status_code in {401, 403}:
+        pytest.skip(f"후잉 API 인증 또는 권한 확인에 실패했습니다: HTTP {exc.status_code}")
+    raise exc
+
+
 def resolve_section_id(client: WhooingClient) -> str:
     configured = os.environ.get("WHOOING_SECTION_ID")
     if configured:
         return configured
 
-    response = client.sections.list()
+    try:
+        response = client.sections.list()
+    except WhooingResponseError as exc:
+        skip_unavailable_api(exc)
     results = response.results
     if not isinstance(results, list):
         pytest.skip("섹션 목록 응답에서 section_id를 찾을 수 없습니다.")
@@ -56,9 +66,12 @@ def _section_id_from(value: JsonValue) -> str | None:
 def test_real_user_and_sections_api() -> None:
     api_key = require_env("WHOOING_API_KEY")
 
-    with WhooingClient(api_key=api_key) as client:
-        user = client.users.get()
-        sections = client.sections.list()
+    try:
+        with WhooingClient(api_key=api_key) as client:
+            user = client.users.get()
+            sections = client.sections.list()
+    except WhooingResponseError as exc:
+        skip_unavailable_api(exc)
 
     assert user.code == 200
     assert sections.code == 200
@@ -73,9 +86,12 @@ def test_real_user_and_sections_api() -> None:
 def test_real_entries_latest_api() -> None:
     api_key = require_env("WHOOING_API_KEY")
 
-    with WhooingClient(api_key=api_key) as client:
-        section_id = resolve_section_id(client)
-        response = client.entries.latest(section_id=section_id)
+    try:
+        with WhooingClient(api_key=api_key) as client:
+            section_id = resolve_section_id(client)
+            response = client.entries.latest(section_id=section_id)
+    except WhooingResponseError as exc:
+        skip_unavailable_api(exc)
 
     assert response.code == 200
 
@@ -86,9 +102,12 @@ def test_real_entries_latest_api() -> None:
 def test_real_accounts_api_matches_pydantic_model() -> None:
     api_key = require_env("WHOOING_API_KEY")
 
-    with WhooingClient(api_key=api_key) as client:
-        section_id = resolve_section_id(client)
-        response = client.accounts.list(section_id=section_id)
+    try:
+        with WhooingClient(api_key=api_key) as client:
+            section_id = resolve_section_id(client)
+            response = client.accounts.list(section_id=section_id)
+    except WhooingResponseError as exc:
+        skip_unavailable_api(exc)
 
     assert response.code == 200
 
