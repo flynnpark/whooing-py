@@ -1,9 +1,10 @@
 # API 구현 커버리지
 
 이 문서는 [후잉 개발자 API 문서](https://whooing.com/api/docs)를 기준으로 현재 라이브러리의
-구현 범위를 추적합니다. 기본 방향은 공식 경로 호출을 안정적으로 제공하고, 응답 스키마는
-`ApiResponse[JsonValue]`로 보존한 뒤 필요한 사용자가 optional Pydantic 헬퍼로 검증하는
-것입니다.
+구현 범위를 추적합니다. 기본 방향은 공식 경로 호출을 안정적으로 제공하고, 기본 클라이언트
+응답은 `ApiResponse[JsonValue]`로 보존한 뒤 필요한 사용자가 Pydantic 헬퍼로 검증하는
+것입니다. CLI 전용 명령은 리소스별 Pydantic 응답 모델로 응답을 검증한 뒤 원본 API envelope을
+출력합니다.
 
 ## 인증
 
@@ -59,8 +60,9 @@
 | API 오류 매핑 | 완료 | 인증, rate limit, 일반 API 오류 |
 | HTTP 429 매핑 | 완료 | `WhooingRateLimitError` |
 | 선택적 재시도 정책 | 완료 | `RetryPolicy` |
-| Optional Pydantic 파싱 | 완료 | `parse`, `parse_results`, `parse_as`, `parse_results_as` |
+| Pydantic 파싱 헬퍼 | 완료 | `parse`, `parse_results`, `parse_as`, `parse_results_as` |
 | 리소스별 Pydantic 응답 모델 | 완료 | `whooing.pydantic_models` |
+| CLI Pydantic 검증 | 완료 | 전용 명령 응답 모델 검증, `api request` 공통 envelope 검증 |
 | 공통 응답 규칙 Pydantic 모델 | 완료 | 성공, 204, 오류, OAuth 오류, OAuth 토큰 응답 |
 | 실제 API 샘플 기반 검증 | 부분 | `tests/fixtures/api_samples`, `tests/test_api_samples.py` |
 | 요청 모델 필드명 회귀 테스트 | 완료 | `tests/test_request_model_fields.py` |

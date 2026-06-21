@@ -15,6 +15,7 @@
 
 ```sh
 uv sync --extra pydantic --dev
+uv run pre-commit run --all-files
 uv run ruff check .
 uv run mypy src
 uv run pytest
