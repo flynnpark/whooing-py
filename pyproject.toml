@@ -49,6 +49,7 @@ whooing = "whooing.cli:main"
 [dependency-groups]
 dev = [
   "mypy>=1.15",
+  "pre-commit>=4.0",
   "pydantic>=2.10,<3",
   "pytest>=8.3",
   "python-dotenv>=1.0",
