@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 from dotenv import load_dotenv
 
-from whooing import WhooingClient
+from whooing import WhooingAuthError, WhooingClient
 from whooing.exceptions import WhooingResponseError
 from whooing.pydantic_models import (
     AccountsResponse,
@@ -27,7 +28,9 @@ def require_env(name: str) -> str:
     return value
 
 
-def skip_unavailable_api(exc: WhooingResponseError) -> None:
+def skip_unavailable_api(exc: WhooingAuthError | WhooingResponseError) -> NoReturn:
+    if isinstance(exc, WhooingAuthError):
+        pytest.skip(f"후잉 API 인증 또는 권한 확인에 실패했습니다: API code {exc.code}")
     if exc.status_code in {401, 403}:
         pytest.skip(f"후잉 API 인증 또는 권한 확인에 실패했습니다: HTTP {exc.status_code}")
     raise exc
@@ -40,7 +43,7 @@ def resolve_section_id(client: WhooingClient) -> str:
 
     try:
         response = client.sections.list()
-    except WhooingResponseError as exc:
+    except (WhooingAuthError, WhooingResponseError) as exc:
         skip_unavailable_api(exc)
     results = response.results
     if not isinstance(results, list):
@@ -70,7 +73,7 @@ def test_real_user_and_sections_api() -> None:
         with WhooingClient(api_key=api_key) as client:
             user = client.users.get()
             sections = client.sections.list()
-    except WhooingResponseError as exc:
+    except (WhooingAuthError, WhooingResponseError) as exc:
         skip_unavailable_api(exc)
 
     assert user.code == 200
@@ -90,7 +93,7 @@ def test_real_entries_latest_api() -> None:
         with WhooingClient(api_key=api_key) as client:
             section_id = resolve_section_id(client)
             response = client.entries.latest(section_id=section_id)
-    except WhooingResponseError as exc:
+    except (WhooingAuthError, WhooingResponseError) as exc:
         skip_unavailable_api(exc)
 
     assert response.code == 200
@@ -106,7 +109,7 @@ def test_real_accounts_api_matches_pydantic_model() -> None:
         with WhooingClient(api_key=api_key) as client:
             section_id = resolve_section_id(client)
             response = client.accounts.list(section_id=section_id)
-    except WhooingResponseError as exc:
+    except (WhooingAuthError, WhooingResponseError) as exc:
         skip_unavailable_api(exc)
 
     assert response.code == 200

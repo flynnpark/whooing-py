@@ -21,5 +21,3 @@ dist/
 build/
 *.egg-info/
 reports/
-
-uv.lock

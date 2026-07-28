@@ -24,8 +24,8 @@ PKCE 토큰 헬퍼, 주요 API 리소스 호출 메서드, 응답 메타데이�
 
 ```sh
 asdf install
-uv sync --dev
-uv run pre-commit install
+uv sync --locked --dev
+uv run --locked pre-commit install
 ```
 
 CLI와 응답 검증 경로가 Pydantic 모델을 사용하므로 `pydantic`은 기본 의존성입니다.
@@ -33,17 +33,19 @@ CLI와 응답 검증 경로가 Pydantic 모델을 사용하므로 `pydantic`은 
 ## 개발
 
 ```sh
-uv run pre-commit run --all-files
-uv run ruff check .
-uv run mypy src
-uv run pytest
+uv lock --check
+uv run --locked pre-commit run --all-files
+uv run --locked ruff check .
+uv run --locked mypy src
+uv run --locked pytest
 uv build
 ```
 
-실제 후잉 API 통합 테스트는 환경 변수가 있을 때만 실행됩니다.
+기본 테스트 실행에서는 실제 후잉 API 통합 테스트를 제외합니다. 통합 테스트는 환경 변수가
+있을 때 명시적으로 실행합니다.
 
 ```sh
-WHOOING_API_KEY=... WHOOING_SECTION_ID=... uv run pytest -m integration
+WHOOING_API_KEY=... WHOOING_SECTION_ID=... uv run --locked pytest -m integration
 ```
 
 이 프로젝트에서만 자동으로 인식되게 하려면 `.env.example`을 참고해 `.env`를 만듭니다.
@@ -57,7 +59,7 @@ WHOOING_SECTION_ID=s123
 이후에는 별도 export 없이 실행할 수 있습니다.
 
 ```sh
-uv run pytest -m integration
+uv run --locked pytest -m integration
 ```
 
 ## 사용 예시

@@ -14,11 +14,12 @@
 ## 검증
 
 ```sh
-uv sync --extra pydantic --dev
-uv run pre-commit run --all-files
-uv run ruff check .
-uv run mypy src
-uv run pytest
+uv sync --locked --extra pydantic --dev
+uv lock --check
+uv run --locked pre-commit run --all-files
+uv run --locked ruff check .
+uv run --locked mypy src
+uv run --locked pytest
 uv build
 ```
 
