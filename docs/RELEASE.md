@@ -21,6 +21,7 @@ GitHub 저장소에는 `pypi` environment를 만들고, 필요하면 배포 승�
 - 새로 추가하거나 제거한 엔드포인트 래퍼가 `docs/API_COVERAGE.md`에 반영됐는지
   확인합니다.
 - 사용자가 인지할 수 있는 변경 사항을 `CHANGELOG.md`에 추가합니다.
+- `CHANGELOG.md`의 대상 버전에서 `Unreleased`를 실제 배포 날짜로 변경합니다.
 - `pyproject.toml`의 `version`과 `src/whooing/__init__.py`의 `__version__`을 함께
   갱신합니다.
 
