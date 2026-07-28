@@ -36,7 +36,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked --extra pydantic --dev
+        run: uv sync --locked --dev
 
       - name: Check lock file
         run: uv lock --check

@@ -33,13 +33,10 @@ dependencies = [
   "typer>=0.12,<1",
 ]
 
-[project.optional-dependencies]
-pydantic = [
-  "pydantic>=2.10,<3",
-]
-
 [project.urls]
-Documentation = "https://whooing.com/api/docs"
+API-Documentation = "https://whooing.com/api/docs"
+Changelog = "https://github.com/flynnpark/whooing-py/blob/main/CHANGELOG.md"
+CLI-Documentation = "https://github.com/flynnpark/whooing-py/blob/main/docs/CLI_USAGE.md"
 Issues = "https://github.com/flynnpark/whooing-py/issues"
 Repository = "https://github.com/flynnpark/whooing-py"
 
@@ -50,9 +47,7 @@ whooing = "whooing.cli:main"
 dev = [
   "mypy>=1.15",
   "pre-commit>=4.0",
-  "pydantic>=2.10,<3",
   "pytest>=8.3",
-  "python-dotenv>=1.0",
   "ruff>=0.9",
 ]
 

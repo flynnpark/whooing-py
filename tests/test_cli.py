@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+from whooing import __version__
 from whooing.auth import OAuth1RequestToken, OAuth2Token
 from whooing.cli import app, main
 from whooing.types import JsonObject, RequestData
@@ -59,7 +60,7 @@ def test_version_option_outputs_package_version() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.stdout == "whooing-py 0.1.0\n"
+    assert result.stdout == f"whooing-py {__version__}\n"
 
 
 def test_main_without_args_shows_help_without_traceback(capsys: pytest.CaptureFixture[str]) -> None:

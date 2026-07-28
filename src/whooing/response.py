@@ -6,7 +6,6 @@ from typing import Generic, Protocol, TypeVar
 from whooing.exceptions import (
     WhooingAPIError,
     WhooingAuthError,
-    WhooingPydanticUnavailableError,
     WhooingRateLimitError,
 )
 from whooing.types import JsonObject, JsonValue
@@ -103,12 +102,7 @@ def _object_or_empty(value: JsonValue | None) -> JsonObject:
 
 
 def _validate_with_type_adapter(annotation: object, value: object) -> object:
-    try:
-        from pydantic import TypeAdapter
-    except ImportError as exc:
-        raise WhooingPydanticUnavailableError(
-            "Pydantic response parsing requires installing 'whooing-py[pydantic]'."
-        ) from exc
+    from pydantic import TypeAdapter
 
     adapter: TypeAdapter[object] = TypeAdapter(annotation)
     return adapter.validate_python(value)

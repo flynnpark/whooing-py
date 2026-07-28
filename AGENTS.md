@@ -29,11 +29,12 @@
 - Before pushing, run the same checks as GitHub Actions when the change can affect code, tests, packaging, dependencies, or CLI behavior:
 
   ```sh
-  uv sync --extra pydantic --dev
-  uv run pre-commit run --all-files
-  uv run ruff check .
-  uv run mypy src
-  uv run pytest
+  uv sync --locked --dev
+  uv lock --check
+  uv run --locked pre-commit run --all-files
+  uv run --locked ruff check .
+  uv run --locked mypy src
+  uv run --locked pytest
   uv build
   ```
 

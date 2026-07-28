@@ -14,7 +14,7 @@
 ## 검증
 
 ```sh
-uv sync --locked --extra pydantic --dev
+uv sync --locked --dev
 uv lock --check
 uv run --locked pre-commit run --all-files
 uv run --locked ruff check .
