@@ -1623,6 +1623,10 @@ def _profile_credentials(
 ) -> tuple[str | None, str | None]:
     if from_env and (api_key is not None or access_token is not None):
         raise ClickException("Use --from-env without --api-key or --access-token.")
+    if api_key is not None and not api_key.strip():
+        raise ClickException("--api-key must not be empty.")
+    if access_token is not None and not access_token.strip():
+        raise ClickException("--access-token must not be empty.")
     if api_key is not None and access_token is not None:
         raise ClickException("Provide only one of --api-key or --access-token.")
     if api_key is not None or access_token is not None:
@@ -1631,8 +1635,7 @@ def _profile_credentials(
     if not from_env:
         raise ClickException("Provide --api-key, --access-token, or --from-env.")
 
-    env_api_key = os.environ.get("WHOOING_API_KEY")
-    env_access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
+    env_api_key, env_access_token = _environment_credentials()
     if env_api_key is not None and env_access_token is not None:
         raise ClickException("Set only one of WHOOING_API_KEY or WHOOING_ACCESS_TOKEN.")
     if env_api_key is not None:
@@ -1646,6 +1649,10 @@ def _profile_credentials(
 
 
 def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
+    if state.api_key is not None and not state.api_key.strip():
+        raise ClickException("--api-key must not be empty.")
+    if state.access_token is not None and not state.access_token.strip():
+        raise ClickException("--access-token must not be empty.")
     if state.api_key is not None and state.access_token is not None:
         raise ClickException("Provide only one of --api-key or --access-token.")
     if state.api_key is not None:
@@ -1653,8 +1660,7 @@ def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
     if state.access_token is not None:
         return {"access_token": state.access_token}
 
-    env_api_key = os.environ.get("WHOOING_API_KEY")
-    env_access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
+    env_api_key, env_access_token = _environment_credentials()
     if env_api_key is not None and env_access_token is not None:
         raise ClickException("Set only one of WHOOING_API_KEY or WHOOING_ACCESS_TOKEN.")
     if env_api_key is not None:
@@ -1664,14 +1670,23 @@ def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
 
     profile = load_config(state.config_path).profiles.get(state.profile)
     if profile is not None:
-        if profile.access_token is not None:
+        if profile.access_token is not None and profile.access_token.strip():
             return {"access_token": profile.access_token}
-        if profile.api_key is not None:
+        if profile.api_key is not None and profile.api_key.strip():
             return {"api_key": profile.api_key}
 
     raise ClickException(
         "Authentication is required. Provide --api-key, --access-token, environment variables, "
         "or a saved profile."
+    )
+
+
+def _environment_credentials() -> tuple[str | None, str | None]:
+    api_key = os.environ.get("WHOOING_API_KEY")
+    access_token = os.environ.get("WHOOING_ACCESS_TOKEN")
+    return (
+        api_key if api_key is not None and api_key.strip() else None,
+        access_token if access_token is not None and access_token.strip() else None,
     )
 
 

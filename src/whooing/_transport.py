@@ -25,6 +25,10 @@ def resolve_auth(
     api_key: str | None,
     access_token: str | None,
 ) -> Auth:
+    if api_key is not None and not api_key.strip():
+        raise ValueError("api_key must not be empty.")
+    if access_token is not None and not access_token.strip():
+        raise ValueError("access_token must not be empty.")
     provided = [auth is not None, api_key is not None, access_token is not None]
     if sum(provided) != 1:
         raise ValueError("Provide exactly one of auth, api_key, or access_token.")

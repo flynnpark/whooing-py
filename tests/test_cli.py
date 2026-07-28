@@ -14,7 +14,8 @@ from typer.testing import CliRunner
 from whooing import __version__
 from whooing.auth import OAuth1RequestToken, OAuth2Token
 from whooing.cli import app, main
-from whooing.types import JsonObject, RequestData
+from whooing.response import ApiResponse
+from whooing.types import JsonObject, JsonValue, RequestData
 
 runner = CliRunner()
 ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
@@ -145,6 +146,61 @@ def test_profile_set_from_env_loads_credentials_from_dotenv(
     assert set_result == 0
     assert show_result.exit_code == 0
     assert json.loads(show_result.stdout)["api_key"] == "dote...cret"
+
+
+def test_empty_environment_credentials_do_not_override_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "profile",
+            "set",
+            "--api-key",
+            "profile-secret",
+        ],
+    )
+    monkeypatch.setenv("WHOOING_API_KEY", "")
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://whooing.com/api/"
+            assert api_key == "profile-secret"
+            assert access_token is None
+            self.sections = self
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def list(self) -> ApiResponse[JsonValue]:
+            return ApiResponse(
+                code=200,
+                message="",
+                rest_of_api=1,
+                error_parameters={},
+                results=[],
+                raw={"code": 200, "results": []},
+            )
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(app, ["--config", str(config_path), "sections", "list"])
+
+    assert result.exit_code == 0
 
 
 def test_help_exposes_resource_command_groups() -> None:

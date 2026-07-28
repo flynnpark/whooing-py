@@ -41,6 +41,15 @@ def test_bearer_token_authentication() -> None:
     assert client.get("user.json").results == {"user_id": 1}
 
 
+@pytest.mark.parametrize(
+    ("name", "kwargs"),
+    [("api_key", {"api_key": ""}), ("access_token", {"access_token": " "})],
+)
+def test_client_rejects_empty_credentials(name: str, kwargs: dict[str, str]) -> None:
+    with pytest.raises(ValueError, match=rf"{name} must not be empty"):
+        WhooingClient(**kwargs)
+
+
 def test_api_error_maps_auth_code() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
