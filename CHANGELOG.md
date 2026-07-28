@@ -18,3 +18,5 @@
   저장은 `profile set --from-env`로 명시화했습니다.
 - AI와 자동화 도구가 목적별 CLI 명령을 고를 수 있도록 `docs/CLI_USAGE.md`를 추가했습니다.
 - GitHub Actions와 pre-commit 기반 로컬 검증 구성을 추가했습니다.
+- 재현 가능한 CI를 위해 `uv.lock`을 추적하고 실제 API 통합 테스트를 분리했습니다.
+- PyPI Trusted Publishing 기반의 태그 검증 및 배포 자동화를 추가했습니다.
