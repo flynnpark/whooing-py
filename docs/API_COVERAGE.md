@@ -28,25 +28,25 @@
 | 문서 영역 | 상태 | 구현 |
 | --- | --- | --- |
 | 사용자 | 완료 | `client.users` |
-| 사용자 요청 모델 | 부분 | `UserInput` |
+| 사용자 요청 모델 | 완료 | `UserInput` |
 | 섹션 | 완료 | `client.sections` |
 | 섹션 요청 모델 | 부분 | `SectionInput` |
 | 계정 | 완료 | `client.accounts` |
-| 계정 요청 모델 | 부분 | `AccountInput`, 생성/수정 지원 |
+| 계정 요청 모델 | 완료 | `AccountInput`, 생성/수정 지원 |
 | 거래 CRUD | 완료 | `client.entries` |
-| 거래 입력 요청 모델 | 부분 | `EntryInput`, 단건/다건 입력 지원 |
+| 거래 입력 요청 모델 | 완료 | `EntryInput`, 단건/다건 입력 지원 |
 | 거래 분석성 API | 완료 | `flow_of_account`, `changes_of_item` 등 명시 메서드 |
 | 외부 거래 입력 | 완료 | `parse_outside`, `report_outside_source` |
 | 예산 | 완료 | `client.budgets` |
 | 예산 요청 모델 | 부분 | `BudgetInput`, `BasicTotalBudgetInput` |
-| 목표 예산 요청 모델 | 부분 | `BudgetGoalInput`, `CapitalGoalInput` |
+| 목표 예산 요청 모델 | 완료 | `BudgetGoalInput`, `CapitalGoalInput` |
 | 보고서 | 완료 | `client.reports` |
 | 자주입력/매월입력 | 완료 | `client.extras` |
 | 카드/입출금/캘린더 | 완료 | `client.extras` |
 | 포스트잇/쪽지/게시판 | 완료 | `client.extras` |
-| 포스트잇/쪽지 요청 모델 | 부분 | `PostItInput`, `MessageInput` |
-| 반복 입력 요청 모델 | 부분 | `FrequentItemInput`, `MonthlyItemInput` |
-| 게시판 요청 모델 | 부분 | `BbsPostInput`, `BbsCommentInput` |
+| 포스트잇/쪽지 요청 모델 | 완료 | `PostItInput`, `MessageInput` |
+| 반복 입력 요청 모델 | 완료 | `FrequentItemInput`, `MonthlyItemInput` |
+| 게시판 요청 모델 | 완료 | `BbsPostInput`, `BbsCommentInput` |
 | 업로드 준비/완료 | 완료 | `prepare_upload`, `complete_upload` |
 | 알림 | 완료 | `notifications`, `mark_notifications_read` |
 | 직접 경로 호출 | 완료 | `client.request`, `async_client.request` |

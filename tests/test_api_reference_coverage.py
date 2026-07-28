@@ -164,7 +164,7 @@ def _collect_implemented_api_endpoints() -> frozenset[tuple[str, str]]:
     extras = ExtrasResource[object](client)
 
     users.get()
-    users.update(nickname="flynn")
+    users.update(username="flynn")
     users.logs()
     users.point_logs()
 

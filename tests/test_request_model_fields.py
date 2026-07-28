@@ -26,8 +26,14 @@ def assert_request_data(data: RequestData, expected_keys: set[str]) -> None:
 
 def test_static_request_models_emit_documented_field_names() -> None:
     assert_request_data(
-        UserInput(nickname="flynn", language="ko", timezone="Asia/Seoul").to_request_data(),
-        {"nickname", "language", "timezone"},
+        UserInput(
+            username="flynn",
+            country="KR",
+            language="ko",
+            timezone="Asia/Seoul",
+            currency="KRW",
+        ).to_request_data(),
+        {"username", "country", "language", "timezone", "currency"},
     )
     assert_request_data(
         SectionInput(title="개인", currency="KRW", memo="memo").to_request_data(),
@@ -35,35 +41,37 @@ def test_static_request_models_emit_documented_field_names() -> None:
     )
     assert_request_data(
         AccountInput(
-            title="현금",
-            memo="memo",
+            account_type="account",
             open_date=20260101,
             close_date=20261231,
-            currency="KRW",
-            initial_money=1000,
-            order=1,
-            group="assets",
+            title="현금",
+            memo="memo",
+            category="normal",
+            opt_use_date="p1",
+            opt_pay_date=25,
+            opt_pay_account_id="x2",
         ).to_request_data(),
         {
-            "title",
-            "memo",
+            "type",
             "open_date",
             "close_date",
-            "currency",
-            "initial_money",
-            "order",
-            "group",
+            "title",
+            "memo",
+            "category",
+            "opt_use_date",
+            "opt_pay_date",
+            "opt_pay_account_id",
         },
     )
     assert_request_data(
         PostItInput(
             section_id="s1",
-            title="메모",
+            page="_main/index",
             contents="내용",
-            position="10,20",
-            color="yellow",
+            everywhere="n",
+            color="ffbd94",
         ).to_request_data(),
-        {"section_id", "title", "contents", "position", "color"},
+        {"section_id", "page", "contents", "everywhere", "color"},
     )
     assert_request_data(
         EntryInput(
@@ -103,9 +111,14 @@ def test_dynamic_request_models_emit_documented_base_fields_and_dynamic_keys() -
         {"start_date", "end_date", "1"},
     )
     assert_request_data(
-        BudgetGoalInput(start_date=202601, end_date=202612, extra_fields={"x1": 1000})
-        .to_request_data(),
-        {"start_date", "end_date", "x1"},
+        BudgetGoalInput(
+            base_ym=202601,
+            goal_ym=202712,
+            goal_money=50_000_000,
+            base_money=10_000_000,
+            split_type="manual",
+        ).to_request_data(),
+        {"base_ym", "goal_ym", "goal_money", "base_money", "split_type"},
     )
     assert_request_data(
         CapitalGoalInput(monthly_goals={1: 1000, "12": 12000}).to_request_data(),
@@ -119,7 +132,6 @@ def test_extra_field_request_models_preserve_explicit_extensions() -> None:
             section_id="s1",
             item="커피",
             money=5000,
-            memo="memo",
             left_account="expenses",
             left_account_id="x1",
             right_account="assets",
@@ -130,7 +142,6 @@ def test_extra_field_request_models_preserve_explicit_extensions() -> None:
             "section_id",
             "item",
             "money",
-            "memo",
             "l_account",
             "l_account_id",
             "r_account",
@@ -142,18 +153,32 @@ def test_extra_field_request_models_preserve_explicit_extensions() -> None:
         MonthlyItemInput(
             section_id="s1",
             item="월세",
+            pay_date=27,
             money=500000,
-            memo="memo",
-            start_date=202601,
-            end_date=202612,
+            left_account="expenses",
+            left_account_id="x1",
+            right_account="assets",
+            right_account_id="x2",
+            skip_holiday="after",
             extra_fields={"custom": "value"},
         ).to_request_data(),
-        {"section_id", "item", "money", "memo", "start_date", "end_date", "custom"},
+        {
+            "section_id",
+            "item",
+            "pay_date",
+            "money",
+            "l_account",
+            "l_account_id",
+            "r_account",
+            "r_account_id",
+            "skip_holiday",
+            "custom",
+        },
     )
     assert_request_data(
-        BbsPostInput(title="제목", contents="본문", extra_fields={"tag": "api"})
+        BbsPostInput(subject="제목", contents="본문", extra_fields={"tag": "api"})
         .to_request_data(),
-        {"title", "contents", "tag"},
+        {"subject", "contents", "tag"},
     )
     assert_request_data(
         BbsCommentInput(contents="댓글", extra_fields={"tag": "api"}).to_request_data(),

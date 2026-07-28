@@ -26,17 +26,21 @@ def _request_data(
 
 @dataclass(frozen=True, slots=True)
 class UserInput:
-    nickname: str | None = None
+    username: str | None = None
+    country: str | None = None
     language: str | None = None
     timezone: str | None = None
+    currency: str | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
             optional={
-                "nickname": self.nickname,
+                "username": self.username,
+                "country": self.country,
                 "language": self.language,
                 "timezone": self.timezone,
+                "currency": self.currency,
             },
             extra_fields=self.extra_fields,
         )
@@ -45,41 +49,59 @@ class UserInput:
 @dataclass(frozen=True, slots=True)
 class SectionInput:
     title: str
-    currency: str | None = None
+    currency: str
     memo: str | None = None
+    skin_id: int | str | None = None
+    decimal_places: int | None = None
+    date_format: str | None = None
+    start_year: int | None = None
+    template_id: int | str | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            required={"title": self.title},
-            optional={"currency": self.currency, "memo": self.memo},
+            required={"title": self.title, "currency": self.currency},
+            optional={
+                "memo": self.memo,
+                "skin_id": self.skin_id,
+                "decimal_places": self.decimal_places,
+                "date_format": self.date_format,
+                "start_year": self.start_year,
+                "template_id": self.template_id,
+            },
             extra_fields=self.extra_fields,
         )
 
 
 @dataclass(frozen=True, slots=True)
 class AccountInput:
-    title: str
+    account_type: Literal["group", "account"]
+    open_date: int | str
+    close_date: int | str
+    title: str | None = None
     memo: str | None = None
-    open_date: int | str | None = None
-    close_date: int | str | None = None
-    currency: str | None = None
-    initial_money: int | float | None = None
-    order: int | None = None
-    group: str | None = None
+    category: str | None = None
+    opt_use_date: int | str | None = None
+    opt_pay_date: int | None = None
+    opt_pay_account_id: str | None = None
+    extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            required={"title": self.title},
-            optional={
-                "memo": self.memo,
+            required={
+                "type": self.account_type,
                 "open_date": self.open_date,
                 "close_date": self.close_date,
-                "currency": self.currency,
-                "initial_money": self.initial_money,
-                "order": self.order,
-                "group": self.group,
             },
+            optional={
+                "title": self.title,
+                "memo": self.memo,
+                "category": self.category,
+                "opt_use_date": self.opt_use_date,
+                "opt_pay_date": self.opt_pay_date,
+                "opt_pay_account_id": self.opt_pay_account_id,
+            },
+            extra_fields=self.extra_fields,
         )
 
 
@@ -111,13 +133,30 @@ class BasicTotalBudgetInput:
 
 @dataclass(frozen=True, slots=True)
 class BudgetGoalInput:
-    start_date: int | str | None = None
-    end_date: int | str | None = None
+    base_ym: int | str
+    goal_ym: int | str
+    goal_money: int | float
+    base_money: int | float | None = None
+    base_income: int | float | None = None
+    base_expenses: int | float | None = None
+    each_months: str | None = None
+    split_type: Literal["auto", "equal", "manual"] | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            optional={"start_date": self.start_date, "end_date": self.end_date},
+            required={
+                "base_ym": self.base_ym,
+                "goal_ym": self.goal_ym,
+                "goal_money": self.goal_money,
+            },
+            optional={
+                "base_money": self.base_money,
+                "base_income": self.base_income,
+                "base_expenses": self.base_expenses,
+                "each_months": self.each_months,
+                "split_type": self.split_type,
+            },
             extra_fields=self.extra_fields,
         )
 
@@ -133,19 +172,19 @@ class CapitalGoalInput:
 @dataclass(frozen=True, slots=True)
 class PostItInput:
     section_id: str
-    title: str
+    page: str
     contents: str
-    position: str | None = None
+    everywhere: Literal["y", "n"] | None = None
     color: str | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
             required={
                 "section_id": self.section_id,
-                "title": self.title,
+                "page": self.page,
                 "contents": self.contents,
             },
-            optional={"position": self.position, "color": self.color},
+            optional={"everywhere": self.everywhere, "color": self.color},
         )
 
 
@@ -153,23 +192,24 @@ class PostItInput:
 class FrequentItemInput:
     section_id: str
     item: str
+    left_account: AccountType
+    right_account: AccountType
     money: int | float | None = None
-    memo: str | None = None
-    left_account: AccountType | None = None
     left_account_id: str | None = None
-    right_account: AccountType | None = None
     right_account_id: str | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            required={"section_id": self.section_id, "item": self.item},
+            required={
+                "section_id": self.section_id,
+                "item": self.item,
+                "l_account": self.left_account,
+                "r_account": self.right_account,
+            },
             optional={
                 "money": self.money,
-                "memo": self.memo,
-                "l_account": self.left_account,
                 "l_account_id": self.left_account_id,
-                "r_account": self.right_account,
                 "r_account_id": self.right_account_id,
             },
             extra_fields=self.extra_fields,
@@ -180,20 +220,25 @@ class FrequentItemInput:
 class MonthlyItemInput:
     section_id: str
     item: str
+    pay_date: int
     money: int | float | None = None
-    memo: str | None = None
-    start_date: int | str | None = None
-    end_date: int | str | None = None
+    left_account: AccountType | None = None
+    left_account_id: str | None = None
+    right_account: AccountType | None = None
+    right_account_id: str | None = None
+    skip_holiday: Literal["none", "before", "after"] | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            required={"section_id": self.section_id, "item": self.item},
+            required={"section_id": self.section_id, "item": self.item, "pay_date": self.pay_date},
             optional={
                 "money": self.money,
-                "memo": self.memo,
-                "start_date": self.start_date,
-                "end_date": self.end_date,
+                "l_account": self.left_account,
+                "l_account_id": self.left_account_id,
+                "r_account": self.right_account,
+                "r_account_id": self.right_account_id,
+                "skip_holiday": self.skip_holiday,
             },
             extra_fields=self.extra_fields,
         )
@@ -203,6 +248,7 @@ class MonthlyItemInput:
 class MessageInput:
     opponent_user_ids: str | list[int | str]
     message: str
+    attachment_ids: str | None = None
 
     def to_request_data(self) -> RequestData:
         opponent_user_ids = (
@@ -210,18 +256,29 @@ class MessageInput:
             if isinstance(self.opponent_user_ids, str)
             else ",".join(str(user_id) for user_id in self.opponent_user_ids)
         )
-        return {"opponent_user_ids": opponent_user_ids, "message": self.message}
+        return _request_data(
+            required={"opponent_user_ids": opponent_user_ids, "message": self.message},
+            optional={"attachment_ids": self.attachment_ids},
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class BbsPostInput:
-    title: str
+    subject: str
     contents: str
+    group: str | None = None
+    language: str | None = None
+    attachment_ids: str | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
-            required={"title": self.title, "contents": self.contents},
+            required={"subject": self.subject, "contents": self.contents},
+            optional={
+                "group": self.group,
+                "language": self.language,
+                "attachment_ids": self.attachment_ids,
+            },
             extra_fields=self.extra_fields,
         )
 
@@ -229,35 +286,44 @@ class BbsPostInput:
 @dataclass(frozen=True, slots=True)
 class BbsCommentInput:
     contents: str
+    attachment_ids: str | None = None
     extra_fields: Mapping[str, RequestValue] | None = None
 
     def to_request_data(self) -> RequestData:
-        return _request_data(required={"contents": self.contents}, extra_fields=self.extra_fields)
+        return _request_data(
+            required={"contents": self.contents},
+            optional={"attachment_ids": self.attachment_ids},
+            extra_fields=self.extra_fields,
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class EntryInput:
-    entry_date: int | str
     left_account: AccountType
     left_account_id: str
     right_account: AccountType
     right_account_id: str
-    item: str
     money: int | float
+    entry_date: int | str | None = None
+    item: str | None = None
     memo: str | None = None
+    attachment_ids: str | None = None
 
     def to_request_data(self) -> RequestData:
         return _request_data(
             required={
-                "entry_date": self.entry_date,
                 "l_account": self.left_account,
                 "l_account_id": self.left_account_id,
                 "r_account": self.right_account,
                 "r_account_id": self.right_account_id,
-                "item": self.item,
                 "money": self.money,
             },
-            optional={"memo": self.memo},
+            optional={
+                "entry_date": self.entry_date,
+                "item": self.item,
+                "memo": self.memo,
+                "attachment_ids": self.attachment_ids,
+            },
         )
 
     def to_json_object(self) -> JsonObject:

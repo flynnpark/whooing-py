@@ -78,19 +78,21 @@ def test_entries_resource_accepts_entry_input() -> None:
 
 def test_account_input_serializes_optional_fields() -> None:
     account = AccountInput(
+        account_type="account",
+        open_date=20260101,
+        close_date=29991231,
         title="현금",
         memo="지갑",
-        open_date=20260101,
-        currency="KRW",
-        initial_money=10000,
+        category="normal",
     )
 
     assert account.to_request_data() == {
+        "type": "account",
+        "open_date": 20260101,
+        "close_date": 29991231,
         "title": "현금",
         "memo": "지갑",
-        "open_date": 20260101,
-        "currency": "KRW",
-        "initial_money": 10000,
+        "category": "normal",
     }
 
 
@@ -101,7 +103,8 @@ def test_accounts_resource_accepts_account_input() -> None:
         body = parse_qs(request.content.decode())
         assert body["section_id"] == ["s1"]
         assert body["title"] == ["현금"]
-        assert body["currency"] == ["KRW"]
+        assert body["type"] == ["account"]
+        assert body["close_date"] == ["29991231"]
         return httpx.Response(200, json={"code": 200, "results": {"account_id": "x1"}})
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
@@ -109,7 +112,12 @@ def test_accounts_resource_accepts_account_input() -> None:
     response = client.accounts.create_account(
         "assets",
         section_id="s1",
-        account_input=AccountInput(title="현금", currency="KRW"),
+        account_input=AccountInput(
+            account_type="account",
+            open_date=20260101,
+            close_date=29991231,
+            title="현금",
+        ),
     )
 
     assert response.results == {"account_id": "x1"}
@@ -158,18 +166,18 @@ def test_budget_resource_accepts_budget_input() -> None:
 def test_post_it_input_serializes_optional_fields() -> None:
     post_it = PostItInput(
         section_id="s1",
-        title="메모",
+        page="_main/index",
         contents="내용",
-        position="10,20",
-        color="yellow",
+        everywhere="n",
+        color="ffbd94",
     )
 
     assert post_it.to_request_data() == {
         "section_id": "s1",
-        "title": "메모",
+        "page": "_main/index",
         "contents": "내용",
-        "position": "10,20",
-        "color": "yellow",
+        "everywhere": "n",
+        "color": "ffbd94",
     }
 
 
@@ -179,14 +187,14 @@ def test_extras_resource_accepts_post_it_input() -> None:
         assert request.url.path == "/api/post_it.json"
         body = parse_qs(request.content.decode())
         assert body["section_id"] == ["s1"]
-        assert body["title"] == ["메모"]
+        assert body["page"] == ["_main/index"]
         assert body["contents"] == ["내용"]
         return httpx.Response(200, json={"code": 200, "results": {"post_it_id": 1}})
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
 
     response = client.extras.create_post_it_from(
-        PostItInput(section_id="s1", title="메모", contents="내용")
+        PostItInput(section_id="s1", page="_main/index", contents="내용")
     )
 
     assert response.results == {"post_it_id": 1}
@@ -249,14 +257,14 @@ def test_frequent_and_monthly_item_inputs() -> None:
     monthly = MonthlyItemInput(
         section_id="s1",
         item="월세",
+        pay_date=27,
         money=500000,
-        start_date=202601,
-        end_date=202612,
+        skip_holiday="after",
     )
 
     assert frequent.to_request_data()["custom"] == "value"
     assert frequent.to_request_data()["l_account"] == "expenses"
-    assert monthly.to_request_data()["start_date"] == 202601
+    assert monthly.to_request_data()["pay_date"] == 27
 
 
 def test_extras_resource_accepts_frequent_and_monthly_item_inputs() -> None:
@@ -273,9 +281,16 @@ def test_extras_resource_accepts_frequent_and_monthly_item_inputs() -> None:
 
     client.extras.create_frequent_item_from(
         "slot1",
-        FrequentItemInput(section_id="s1", item="커피"),
+        FrequentItemInput(
+            section_id="s1",
+            item="커피",
+            left_account="expenses",
+            right_account="assets",
+        ),
     )
-    client.extras.create_monthly_item_from(MonthlyItemInput(section_id="s1", item="월세"))
+    client.extras.create_monthly_item_from(
+        MonthlyItemInput(section_id="s1", item="월세", pay_date=27)
+    )
 
     assert calls == ["/api/frequent_items/slot1.json", "/api/monthly_items/slot1.json"]
 
@@ -293,7 +308,7 @@ def test_bbs_inputs_and_resource_helpers() -> None:
 
     client.extras.create_bbs_from(
         "notice",
-        BbsPostInput(title="제목", contents="본문", extra_fields={"tag": "api"}),
+        BbsPostInput(subject="제목", contents="본문", extra_fields={"tag": "api"}),
     )
     client.extras.create_bbs_comment_from(
         "notice",
@@ -319,13 +334,13 @@ def test_user_input_and_resource_helper() -> None:
         assert request.method == "PUT"
         assert request.url.path == "/api/user.json"
         body = parse_qs(request.content.decode())
-        assert body["nickname"] == ["flynn"]
+        assert body["username"] == ["flynn"]
         assert body["language"] == ["ko"]
         return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
 
     client = WhooingClient(api_key="secret", transport=httpx.MockTransport(handler))
 
-    response = client.users.update_user(UserInput(nickname="flynn", language="ko"))
+    response = client.users.update_user(UserInput(username="flynn", language="ko"))
 
     assert response.results == {"ok": True}
 
@@ -343,7 +358,12 @@ def test_goal_inputs_and_resource_helpers() -> None:
 
     client.budgets.update_goal_from(
         section_id="s1",
-        goal=BudgetGoalInput(start_date=202601, end_date=202612, extra_fields={"x1": 10000}),
+        goal=BudgetGoalInput(
+            base_ym=202601,
+            goal_ym=202712,
+            goal_money=50_000_000,
+            split_type="equal",
+        ),
     )
     client.budgets.update_capital_goal_from(
         section_id="s1",
