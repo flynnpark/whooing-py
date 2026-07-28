@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import parse_qs
 
 import httpx
+import pytest
 
 from whooing import (
     AccountInput,
@@ -125,19 +126,28 @@ def test_accounts_resource_accepts_account_input() -> None:
 
 def test_budget_inputs_serialize_documented_dynamic_keys() -> None:
     budget = BudgetInput(target_ym=202606, amounts_by_account_id={"x1": 10000})
+    monthly_totals = {month: month * 1000 for month in range(1, 13)}
     total = BasicTotalBudgetInput(
         start_date=202601,
         end_date=202612,
-        monthly_totals={1: 10000, 12: 20000},
+        monthly_totals=monthly_totals,
     )
 
     assert budget.to_request_data() == {"target_ym": 202606, "x1": 10000}
     assert total.to_request_data() == {
         "start_date": 202601,
         "end_date": 202612,
-        "1": 10000,
-        "12": 20000,
+        **{str(month): amount for month, amount in monthly_totals.items()},
     }
+
+
+def test_basic_total_budget_requires_all_twelve_months() -> None:
+    with pytest.raises(ValueError, match="every month from 1 through 12"):
+        BasicTotalBudgetInput(
+            start_date=202601,
+            end_date=202612,
+            monthly_totals={1: 10000},
+        )
 
 
 def test_budget_resource_accepts_budget_input() -> None:

@@ -106,9 +106,9 @@ def test_dynamic_request_models_emit_documented_base_fields_and_dynamic_keys() -
         BasicTotalBudgetInput(
             start_date=202601,
             end_date=202612,
-            monthly_totals={1: 1000},
+            monthly_totals={month: month * 1000 for month in range(1, 13)},
         ).to_request_data(),
-        {"start_date", "end_date", "1"},
+        {"start_date", "end_date", *(str(month) for month in range(1, 13))},
     )
     assert_request_data(
         BudgetGoalInput(

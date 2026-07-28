@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
 from helpers import form_body, make_client
 
@@ -42,6 +43,33 @@ def test_entries_bulk_create_serializes_entries_as_json_string() -> None:
             }
         ],
     )
+
+
+@pytest.mark.parametrize(
+    ("operation", "values", "maximum"),
+    [
+        ("create", [], 300),
+        ("create", [{}] * 301, 300),
+        ("update", [], 100),
+        ("update", list(range(101)), 100),
+        ("delete", [], 100),
+        ("delete", list(range(101)), 100),
+    ],
+)
+def test_entries_batch_operations_enforce_documented_limits(
+    operation: str,
+    values: list[object],
+    maximum: int,
+) -> None:
+    client = make_client(lambda _: None)
+
+    with pytest.raises(ValueError, match=rf"between 1 and {maximum}"):
+        if operation == "create":
+            client.entries.create_many(section_id="s1", entries=values)
+        elif operation == "update":
+            client.entries.update_many(values, section_id="s1", item="coffee")
+        else:
+            client.entries.delete(values, section_id="s1")
 
 
 def test_budget_update_uses_account_id_keys() -> None:

@@ -122,6 +122,17 @@ class BasicTotalBudgetInput:
     end_date: int | str
     monthly_totals: dict[int, int | float]
 
+    def __post_init__(self) -> None:
+        expected_months = set(range(1, 13))
+        provided_months = set(self.monthly_totals)
+        if provided_months != expected_months:
+            missing = sorted(expected_months - provided_months)
+            unexpected = sorted(provided_months - expected_months)
+            raise ValueError(
+                "monthly_totals must contain every month from 1 through 12; "
+                f"missing={missing}, unexpected={unexpected}."
+            )
+
     def to_request_data(self) -> RequestData:
         data: dict[str, RequestValue] = {
             "start_date": self.start_date,

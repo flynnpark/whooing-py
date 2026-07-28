@@ -189,6 +189,7 @@ class EntriesResource(BaseResource[ResponseT]):
         section_id: str,
         entries: Sequence[Mapping[str, JsonValue]],
     ) -> ResponseT:
+        _validate_batch_size(entries, name="entries", maximum=300)
         return self._client.post(
             "entries.json",
             data={
@@ -223,12 +224,14 @@ class EntriesResource(BaseResource[ResponseT]):
         section_id: str,
         **fields: RequestValue,
     ) -> ResponseT:
+        _validate_batch_size(entry_ids, name="entry_ids", maximum=100)
         return self._client.put(
             f"entries/{_comma_join(entry_ids)}/{section_id}.json",
             data=fields,
         )
 
     def delete(self, entry_ids: Sequence[int | str], *, section_id: str) -> ResponseT:
+        _validate_batch_size(entry_ids, name="entry_ids", maximum=100)
         return self._client.delete(f"entries/{_comma_join(entry_ids)}/{section_id}.json")
 
     def latest(self, *, section_id: str, **params: RequestValue) -> ResponseT:
@@ -729,6 +732,12 @@ def _comma_join(values: str | int | Sequence[str | int]) -> str:
     if isinstance(values, str | int):
         return str(values)
     return ",".join(str(value) for value in values)
+
+
+def _validate_batch_size(values: Sequence[object], *, name: str, maximum: int) -> None:
+    size = len(values)
+    if size == 0 or size > maximum:
+        raise ValueError(f"{name} must contain between 1 and {maximum} items; received {size}.")
 
 
 def _with_section(section_id: str, params: Mapping[str, RequestValue]) -> RequestData:
