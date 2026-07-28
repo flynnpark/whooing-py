@@ -13,6 +13,8 @@
 - 셸에 export된 `WHOOING_API_KEY` 또는 `WHOOING_ACCESS_TOKEN`이 있으면 `.env`보다 우선합니다.
 - 프로필 저장은 명시적 작업입니다. 환경 변수 값을 프로필에 저장하려면 `profile set --from-env`를
   사용합니다.
+- 프로필에는 API key와 access token 중 하나만 저장됩니다. 다른 인증 방식으로 다시 저장하면
+  기존 값은 제거되며, 프로필 파일은 소유자만 읽고 쓸 수 있도록 저장됩니다.
 
 ```sh
 whooing --output json sections list

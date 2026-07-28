@@ -251,6 +251,9 @@ whooing --profile default profile set --api-key 발급된_인증키
 whooing --profile default sections list
 ```
 
+프로필에는 API key와 access token 중 하나만 저장되며, 다른 인증 방식으로 다시 저장하면
+기존 값은 제거됩니다. 프로필 파일은 소유자만 읽고 쓸 수 있도록 저장됩니다.
+
 현재 디렉터리에 `.env`가 있으면 CLI 실행 시 자동으로 읽습니다. 셸에 export된 글로벌 환경
 변수가 있으면 그 값을 우선 사용하고, 없을 때 `.env`의 `WHOOING_API_KEY` 또는
 `WHOOING_ACCESS_TOKEN`을 사용합니다. 환경 변수 값을 프로필에 영구 저장하려면 의도를

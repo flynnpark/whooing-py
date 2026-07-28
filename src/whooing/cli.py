@@ -25,6 +25,7 @@ from whooing.auth import (
     create_pkce_challenge,
 )
 from whooing.cli_config import (
+    CliConfigError,
     default_config_path,
     load_config,
     mask_secret,
@@ -148,6 +149,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ClickException as exc:
         exc.show()
         return int(exc.exit_code)
+    except CliConfigError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        return 1
     except WhooingError as exc:
         typer.echo(render_output(render_error(exc), "json"), err=True)
         return 1
@@ -1619,6 +1623,8 @@ def _profile_credentials(
 ) -> tuple[str | None, str | None]:
     if from_env and (api_key is not None or access_token is not None):
         raise ClickException("Use --from-env without --api-key or --access-token.")
+    if api_key is not None and access_token is not None:
+        raise ClickException("Provide only one of --api-key or --access-token.")
     if api_key is not None or access_token is not None:
         return api_key, access_token
 

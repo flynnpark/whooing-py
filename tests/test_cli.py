@@ -192,6 +192,41 @@ def test_profile_commands_store_and_mask_credentials(tmp_path: Path) -> None:
     assert json.loads(list_result.stdout) == {"profiles": ["work"]}
 
 
+def test_profile_set_rejects_multiple_authentication_methods(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+
+    exit_code = main(
+        [
+            "--config",
+            str(config_path),
+            "profile",
+            "set",
+            "--api-key",
+            "key",
+            "--access-token",
+            "token",
+        ]
+    )
+
+    assert exit_code != 0
+    assert not config_path.exists()
+
+
+def test_main_reports_invalid_profile_config_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text("{", encoding="utf-8")
+
+    exit_code = main(["--config", str(config_path), "profile", "list"])
+    captured = capsys.readouterr()
+
+    assert exit_code != 0
+    assert "Unable to read CLI config" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_profile_list_supports_table_output(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
     runner.invoke(

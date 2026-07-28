@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from whooing.types import JsonObject
+
+
+class CliConfigError(ValueError):
+    """Raised when the CLI profile store cannot be read or written safely."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,14 +45,15 @@ def default_config_path() -> Path:
 def load_config(path: Path) -> CliConfig:
     if not path.exists():
         return CliConfig(profiles={})
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CliConfigError(f"Unable to read CLI config: {path}") from exc
     if not isinstance(payload, dict):
-        msg = "CLI config must be a JSON object."
-        raise ValueError(msg)
+        raise CliConfigError("CLI config must be a JSON object.")
     profiles_value = payload.get("profiles", {})
     if not isinstance(profiles_value, dict):
-        msg = "CLI config profiles must be a JSON object."
-        raise ValueError(msg)
+        raise CliConfigError("CLI config profiles must be a JSON object.")
     profiles: dict[str, CliProfile] = {}
     for name, value in profiles_value.items():
         if not isinstance(name, str) or not isinstance(value, dict):
@@ -62,11 +68,26 @@ def load_config(path: Path) -> CliConfig:
 
 
 def save_config(path: Path, config: CliConfig) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(config.to_json(), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    content = json.dumps(config.to_json(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    temporary_path: Path | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            text=True,
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            file.write(content)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary_path.replace(path)
+    except OSError as exc:
+        raise CliConfigError(f"Unable to write CLI config: {path}") from exc
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def set_profile(
@@ -78,10 +99,14 @@ def set_profile(
 ) -> CliConfig:
     current = config.profiles.get(name, CliProfile())
     profiles = dict(config.profiles)
-    profiles[name] = CliProfile(
-        api_key=api_key if api_key is not None else current.api_key,
-        access_token=access_token if access_token is not None else current.access_token,
-    )
+    if api_key is not None and access_token is not None:
+        raise ValueError("A profile can store only one authentication method.")
+    if api_key is not None:
+        profiles[name] = CliProfile(api_key=api_key)
+    elif access_token is not None:
+        profiles[name] = CliProfile(access_token=access_token)
+    else:
+        profiles[name] = current
     return CliConfig(profiles=profiles)
 
 

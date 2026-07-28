@@ -33,8 +33,8 @@ CLI는 `typer` 기반으로 구성합니다. API 응답과 CLI 요청 payload �
 
 권장 우선순위:
 
-1. 환경 변수: `WHOOING_API_KEY`, `WHOOING_ACCESS_TOKEN`
-2. 명시적 옵션: `--api-key`, `--access-token`
+1. 명시적 옵션: `--api-key`, `--access-token`
+2. 환경 변수: `WHOOING_API_KEY`, `WHOOING_ACCESS_TOKEN`
 3. CLI 프로필 파일: 운영체제별 사용자 설정 디렉터리
 4. OS keychain: 필요해질 때 별도 optional dependency로 도입
 
