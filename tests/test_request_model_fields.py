@@ -176,8 +176,9 @@ def test_extra_field_request_models_preserve_explicit_extensions() -> None:
         },
     )
     assert_request_data(
-        BbsPostInput(subject="제목", contents="본문", extra_fields={"tag": "api"})
-        .to_request_data(),
+        BbsPostInput(
+            subject="제목", contents="본문", extra_fields={"tag": "api"}
+        ).to_request_data(),
         {"subject", "contents", "tag"},
     )
     assert_request_data(

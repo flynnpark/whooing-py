@@ -297,6 +297,7 @@ def collect_read_results(client: WhooingClient) -> list[CollectedResult]:
                 ),
             ),
         )
+
     def custom_rows_call(report_name: ReportCustomType) -> ApiCall:
         return lambda: client.reports.custom_rows(
             section_id=section_id,

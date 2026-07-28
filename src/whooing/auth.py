@@ -186,7 +186,7 @@ class AppAuthClient:
                 app_id=app_id,
                 app_secret=app_secret,
                 callback_uri=callback_uri,
-            )
+            ),
         )
         return _parse_oauth1_request_token(_decode_request_token_response(response))
 
@@ -351,7 +351,7 @@ class AsyncAppAuthClient:
                 app_id=app_id,
                 app_secret=app_secret,
                 callback_uri=callback_uri,
-            )
+            ),
         )
         return _parse_oauth1_request_token(_decode_request_token_response(response))
 

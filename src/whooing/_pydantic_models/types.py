@@ -17,8 +17,7 @@ DateValue: TypeAlias = Annotated[
     Field(
         title="날짜 값",
         description=(
-            "후잉 API에서 사용하는 날짜 값입니다. "
-            "일반적으로 YYYYMMDD 또는 YYYYMM 형식입니다."
+            "후잉 API에서 사용하는 날짜 값입니다. 일반적으로 YYYYMMDD 또는 YYYYMM 형식입니다."
         ),
     ),
 ]

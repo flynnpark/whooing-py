@@ -46,6 +46,7 @@ CLI와 응답 검증 경로가 Pydantic 모델을 사용하므로 `pydantic`은 
 uv lock --check
 uv run --locked pre-commit run --all-files
 uv run --locked ruff check .
+uv run --locked ruff format --check .
 uv run --locked mypy src
 uv run --locked pytest
 uv build

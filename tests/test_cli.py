@@ -41,7 +41,7 @@ def test_oauth2_url_command_outputs_pkce_payload() -> None:
             "write",
             "--state",
             "state",
-        ]
+        ],
     )
 
     payload = cast(JsonObject, json.loads(result.stdout))

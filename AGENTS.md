@@ -24,7 +24,8 @@
 
 ## Verification Rules
 
-- This repository configures `pre-commit` with local hooks for `ruff check .` and `mypy src`.
+- This repository configures `pre-commit` with local hooks for `ruff check .`,
+  `ruff format --check .`, and `mypy src`.
 - Do not rely on pre-commit alone before pushing; it does not run pytest or package builds.
 - Before pushing, run the same checks as GitHub Actions when the change can affect code, tests, packaging, dependencies, or CLI behavior:
 
@@ -33,6 +34,7 @@
   uv lock --check
   uv run --locked pre-commit run --all-files
   uv run --locked ruff check .
+  uv run --locked ruff format --check .
   uv run --locked mypy src
   uv run --locked pytest
   uv build
