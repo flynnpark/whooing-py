@@ -24,3 +24,5 @@
   모델의 필드명을 현재 후잉 개발자 API 문서와 일치시켰습니다.
 - 성공 및 OAuth 응답이 JSON 객체가 아닐 때 패키지 응답 예외로 정규화합니다.
 - 중복 생성을 방지하기 위해 POST 요청은 기본 자동 재시도 대상에서 제외합니다.
+- OAuth2 token 폐기의 빈 성공 응답과 OAuth1 request-token의 callback redirect 응답을
+  지원합니다.

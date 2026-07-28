@@ -29,6 +29,24 @@ def test_app_auth_request_token_uses_legacy_endpoint_params() -> None:
     assert token.token == "request-token"
 
 
+def test_app_auth_request_token_accepts_callback_redirect() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            302,
+            headers={"Location": "https://app.example/callback?token=request-token"},
+        )
+
+    client = AppAuthClient(transport=httpx.MockTransport(handler))
+
+    token = client.request_token(
+        app_id="app",
+        app_secret="secret",
+        callback_uri="https://app.example/callback",
+    )
+
+    assert token.token == "request-token"
+
+
 def test_app_auth_access_token_and_authorization_url() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
@@ -132,5 +150,25 @@ def test_async_app_auth_and_metadata_helpers() -> None:
 
         assert token.token == "request-token"
         assert metadata["token_endpoint"] == "https://whooing.com/oauth2/token"
+
+    asyncio.run(run())
+
+
+def test_async_app_auth_request_token_accepts_callback_redirect() -> None:
+    async def run() -> None:
+        async def handler(_: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                302,
+                headers={"Location": "https://app.example/callback?token=request-token"},
+            )
+
+        async with AsyncAppAuthClient(transport=httpx.MockTransport(handler)) as client:
+            token = await client.request_token(
+                app_id="app",
+                app_secret="secret",
+                callback_uri="https://app.example/callback",
+            )
+
+        assert token.token == "request-token"
 
     asyncio.run(run())

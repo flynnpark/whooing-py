@@ -7,7 +7,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
 
@@ -135,17 +135,23 @@ class OAuth2TokenClient:
         )
 
     def revoke(self, token: str) -> JsonObject:
-        return self._post_json(self._revoke_endpoint, {"token": token})
+        return self._post_json(self._revoke_endpoint, {"token": token}, allow_empty=True)
 
     def _post_token(self, data: RequestData) -> OAuth2Token:
         return _parse_oauth2_token(self._post_json(self._token_endpoint, data))
 
-    def _post_json(self, url: str, data: RequestData) -> JsonObject:
+    def _post_json(
+        self,
+        url: str,
+        data: RequestData,
+        *,
+        allow_empty: bool = False,
+    ) -> JsonObject:
         try:
             response = self._client.post(url, data={key: value for key, value in data.items()})
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
-        return _decode_oauth_json(response)
+        return _decode_oauth_json(response, allow_empty=allow_empty)
 
 
 class AppAuthClient:
@@ -174,16 +180,15 @@ class AppAuthClient:
         app_secret: str,
         callback_uri: str | None = None,
     ) -> OAuth1RequestToken:
-        return _parse_oauth1_request_token(
-            self._get_json(
-                "request_token",
-                _oauth1_request_token_params(
-                    app_id=app_id,
-                    app_secret=app_secret,
-                    callback_uri=callback_uri,
-                ),
+        response = self._get(
+            "request_token",
+            _oauth1_request_token_params(
+                app_id=app_id,
+                app_secret=app_secret,
+                callback_uri=callback_uri,
             )
         )
+        return _parse_oauth1_request_token(_decode_request_token_response(response))
 
     def build_authorization_url(
         self,
@@ -238,11 +243,13 @@ class AppAuthClient:
         )
 
     def _get_json(self, path: str, params: RequestData) -> JsonObject:
+        return _decode_oauth_json(self._get(path, params))
+
+    def _get(self, path: str, params: RequestData) -> httpx.Response:
         try:
-            response = self._client.get(path, params={key: value for key, value in params.items()})
+            return self._client.get(path, params={key: value for key, value in params.items()})
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
-        return _decode_oauth_json(response)
 
 
 class AsyncOAuth2TokenClient:
@@ -290,12 +297,18 @@ class AsyncOAuth2TokenClient:
         )
 
     async def revoke(self, token: str) -> JsonObject:
-        return await self._post_json(self._revoke_endpoint, {"token": token})
+        return await self._post_json(self._revoke_endpoint, {"token": token}, allow_empty=True)
 
     async def _post_token(self, data: RequestData) -> OAuth2Token:
         return _parse_oauth2_token(await self._post_json(self._token_endpoint, data))
 
-    async def _post_json(self, url: str, data: RequestData) -> JsonObject:
+    async def _post_json(
+        self,
+        url: str,
+        data: RequestData,
+        *,
+        allow_empty: bool = False,
+    ) -> JsonObject:
         try:
             response = await self._client.post(
                 url,
@@ -303,7 +316,7 @@ class AsyncOAuth2TokenClient:
             )
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
-        return _decode_oauth_json(response)
+        return _decode_oauth_json(response, allow_empty=allow_empty)
 
 
 class AsyncAppAuthClient:
@@ -332,16 +345,15 @@ class AsyncAppAuthClient:
         app_secret: str,
         callback_uri: str | None = None,
     ) -> OAuth1RequestToken:
-        return _parse_oauth1_request_token(
-            await self._get_json(
-                "request_token",
-                _oauth1_request_token_params(
-                    app_id=app_id,
-                    app_secret=app_secret,
-                    callback_uri=callback_uri,
-                ),
+        response = await self._get(
+            "request_token",
+            _oauth1_request_token_params(
+                app_id=app_id,
+                app_secret=app_secret,
+                callback_uri=callback_uri,
             )
         )
+        return _parse_oauth1_request_token(_decode_request_token_response(response))
 
     def build_authorization_url(
         self,
@@ -396,14 +408,16 @@ class AsyncAppAuthClient:
         )
 
     async def _get_json(self, path: str, params: RequestData) -> JsonObject:
+        return _decode_oauth_json(await self._get(path, params))
+
+    async def _get(self, path: str, params: RequestData) -> httpx.Response:
         try:
-            response = await self._client.get(
+            return await self._client.get(
                 path,
                 params={key: value for key, value in params.items()},
             )
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
-        return _decode_oauth_json(response)
 
 
 def create_pkce_challenge(byte_length: int = 64) -> PKCEChallenge:
@@ -466,7 +480,23 @@ async def async_get_oauth2_metadata(
     return _decode_oauth_json(response)
 
 
-def _decode_oauth_json(response: httpx.Response) -> JsonObject:
+def _decode_request_token_response(response: httpx.Response) -> JsonObject:
+    if response.is_redirect:
+        location = response.headers.get("Location")
+        if location is not None:
+            tokens = parse_qs(urlsplit(location).query).get("token")
+            if tokens and tokens[0]:
+                return {"token": tokens[0]}
+    return _decode_oauth_json(response)
+
+
+def _decode_oauth_json(
+    response: httpx.Response,
+    *,
+    allow_empty: bool = False,
+) -> JsonObject:
+    if allow_empty and response.status_code in {200, 204} and not response.content:
+        return {}
     try:
         decoded = response.json()
     except ValueError as exc:

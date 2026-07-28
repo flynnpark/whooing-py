@@ -87,6 +87,16 @@ def test_oauth2_non_object_json_raises_response_error() -> None:
         client.refresh(client_id="app", refresh_token="refresh")
 
 
+def test_oauth2_revoke_accepts_empty_success_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url == "https://whooing.com/oauth2/revoke"
+        return httpx.Response(200)
+
+    client = OAuth2TokenClient(transport=httpx.MockTransport(handler))
+
+    assert client.revoke("access-token") == {}
+
+
 def test_async_oauth2_refresh() -> None:
     async def run() -> None:
         async def handler(request: httpx.Request) -> httpx.Response:
