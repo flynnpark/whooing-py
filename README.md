@@ -1,6 +1,8 @@
 # whooing-py
 
-[후잉 개발자 API](https://whooing.com/api/docs)를 위한 Python 클라이언트 라이브러리입니다.
+[후잉가계부(Whooing)](https://whooing.com)의
+[개발자 API](https://whooing.com/api/docs)를 위한 비공식 Python 클라이언트
+라이브러리입니다.
 
 ## 상태
 
@@ -11,6 +13,14 @@ PKCE 토큰 헬퍼, 주요 API 리소스 호출 메서드, 응답 메타데이�
 응답 스키마는 API 전역에서 폭이 넓기 때문에 현재는 `ApiResponse[JsonValue]` 형태로
 `results`, `rest_of_api`, `code`, 원본 `raw`를 보존합니다. 자주 쓰는 도메인부터 별도
 모델을 점진적으로 얹을 수 있는 구조입니다.
+
+## 설치
+
+```sh
+python -m pip install whooing-py
+```
+
+Python 3.11 이상을 지원합니다.
 
 ## 도구
 

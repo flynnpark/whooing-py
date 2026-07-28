@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "whooing-py"
 version = "0.1.0"
-description = "Python client library for the Whooing Developer API."
+description = "Unofficial Python client library for the Whooing Developer API."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
