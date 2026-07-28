@@ -468,7 +468,7 @@ async def async_get_oauth2_metadata(
 
 def _decode_oauth_json(response: httpx.Response) -> JsonObject:
     try:
-        payload = cast(JsonObject, response.json())
+        decoded = response.json()
     except ValueError as exc:
         if response.status_code >= 400:
             raise WhooingResponseError(
@@ -481,6 +481,13 @@ def _decode_oauth_json(response: httpx.Response) -> JsonObject:
             status_code=response.status_code,
             body=response.text,
         ) from exc
+    if not isinstance(decoded, dict):
+        raise WhooingResponseError(
+            "Whooing OAuth response must be a JSON object.",
+            status_code=response.status_code,
+            body=response.text,
+        )
+    payload = cast(JsonObject, decoded)
 
     error = _optional_str(payload.get("error"))
     if error is not None:

@@ -114,6 +114,16 @@ def test_http_error_raises_response_error() -> None:
         client.get("user.json")
 
 
+def test_non_object_json_response_raises_response_error() -> None:
+    client = WhooingClient(
+        api_key="secret",
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=[])),
+    )
+
+    with pytest.raises(WhooingResponseError, match="must be a JSON object"):
+        client.get("user.json")
+
+
 def test_pkce_authorization_url_contains_challenge() -> None:
     challenge = create_pkce_challenge()
 

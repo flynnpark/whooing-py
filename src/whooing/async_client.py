@@ -85,6 +85,7 @@ class AsyncWhooingClient:
                 data=clean_params(data),
                 headers=headers,
             ),
+            method=method,
             retry_policy=self._retry_policy,
             sleep=asyncio.sleep,
         )

@@ -84,6 +84,7 @@ class WhooingClient:
                 data=clean_params(data),
                 headers=headers,
             ),
+            method=method,
             retry_policy=self._retry_policy,
             sleep=time.sleep,
         )

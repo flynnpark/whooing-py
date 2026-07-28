@@ -46,6 +46,7 @@ def clean_params(data: RequestData | None) -> Mapping[str, RequestValue] | None:
 def request_with_retries(
     send: SyncSend,
     *,
+    method: HttpMethod,
     retry_policy: RetryPolicy | None,
     sleep: SyncSleep,
 ) -> httpx.Response:
@@ -56,7 +57,7 @@ def request_with_retries(
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
 
-        if retry_policy is None or not retry_policy.should_retry(response, attempt):
+        if retry_policy is None or not retry_policy.should_retry(response, attempt, method):
             return response
 
         delay = retry_policy.delay_for(response, attempt)
@@ -68,6 +69,7 @@ def request_with_retries(
 async def async_request_with_retries(
     send: AsyncSend,
     *,
+    method: HttpMethod,
     retry_policy: RetryPolicy | None,
     sleep: AsyncSleep,
 ) -> httpx.Response:
@@ -78,7 +80,7 @@ async def async_request_with_retries(
         except httpx.TransportError as exc:
             raise WhooingTransportError(str(exc)) from exc
 
-        if retry_policy is None or not retry_policy.should_retry(response, attempt):
+        if retry_policy is None or not retry_policy.should_retry(response, attempt, method):
             return response
 
         delay = retry_policy.delay_for(response, attempt)
@@ -106,12 +108,19 @@ def decode_api_response(response: httpx.Response) -> ApiResponse[JsonValue]:
         )
 
     try:
-        payload = cast(JsonObject, response.json())
+        decoded = response.json()
     except ValueError as exc:
         raise WhooingResponseError(
             "Whooing response is not valid JSON.",
             status_code=response.status_code,
             body=response.text,
         ) from exc
+    if not isinstance(decoded, dict):
+        raise WhooingResponseError(
+            "Whooing response must be a JSON object.",
+            status_code=response.status_code,
+            body=response.text,
+        )
+    payload = cast(JsonObject, decoded)
 
     return parse_api_response(payload)

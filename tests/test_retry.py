@@ -5,7 +5,13 @@ import asyncio
 import httpx
 import pytest
 
-from whooing import AsyncWhooingClient, RetryPolicy, WhooingClient, WhooingRateLimitError
+from whooing import (
+    AsyncWhooingClient,
+    RetryPolicy,
+    WhooingClient,
+    WhooingRateLimitError,
+    WhooingResponseError,
+)
 from whooing.retry import parse_retry_after
 
 
@@ -45,6 +51,48 @@ def test_sync_client_keeps_default_no_retry_behavior() -> None:
         client.users.get()
 
     assert attempts == 1
+
+
+def test_sync_client_does_not_retry_post_by_default() -> None:
+    attempts = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503, json={"message": "unavailable"})
+
+    client = WhooingClient(
+        api_key="secret",
+        transport=httpx.MockTransport(handler),
+        retry_policy=RetryPolicy(max_attempts=2),
+    )
+
+    with pytest.raises(WhooingResponseError):
+        client.entries.create(section_id="s1", item="coffee")
+
+    assert attempts == 1
+
+
+def test_sync_client_retries_post_only_when_explicitly_enabled() -> None:
+    attempts = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(503, json={"message": "unavailable"})
+        return httpx.Response(200, json={"code": 200, "results": {"ok": True}})
+
+    client = WhooingClient(
+        api_key="secret",
+        transport=httpx.MockTransport(handler),
+        retry_policy=RetryPolicy(max_attempts=2, retry_methods=frozenset({"POST"})),
+    )
+
+    response = client.entries.create(section_id="s1", item="coffee")
+
+    assert attempts == 2
+    assert response.results == {"ok": True}
 
 
 def test_async_client_retries_temporary_server_error() -> None:

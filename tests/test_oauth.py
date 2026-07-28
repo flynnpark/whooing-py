@@ -78,6 +78,15 @@ def test_oauth2_non_json_http_error_raises_response_error() -> None:
     assert exc_info.value.body == "<html>Server Error</html>"
 
 
+def test_oauth2_non_object_json_raises_response_error() -> None:
+    client = OAuth2TokenClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=[]))
+    )
+
+    with pytest.raises(WhooingResponseError, match="must be a JSON object"):
+        client.refresh(client_id="app", refresh_token="refresh")
+
+
 def test_async_oauth2_refresh() -> None:
     async def run() -> None:
         async def handler(request: httpx.Request) -> httpx.Response:
