@@ -15,6 +15,9 @@
   사용합니다.
 - 프로필에는 API key와 access token 중 하나만 저장됩니다. 다른 인증 방식으로 다시 저장하면
   기존 값은 제거되며, 프로필 파일은 소유자만 읽고 쓸 수 있도록 저장됩니다.
+- OAuth 로그인을 사용하면 access token, refresh token, App ID와 기본 섹션이 현재 프로필에
+  저장됩니다.
+- 섹션 ID는 명령의 `--section-id`, `WHOOING_SECTION_ID`, 현재 프로필 순서로 결정됩니다.
 
 ```sh
 whooing --output json sections list
@@ -22,6 +25,46 @@ whooing --output table sections list
 whooing --profile default sections list
 whooing --api-key "$WHOOING_API_KEY" sections list
 whooing profile set --from-env
+```
+
+## 최초 로그인
+
+후잉 `My Apps`에서 애플리케이션을 등록하고 redirect URI에 `http://localhost`를 추가합니다.
+그다음 발급된 App ID로 브라우저 로그인을 시작합니다.
+
+```sh
+# 읽기 전용 권한
+whooing auth login --client-id APP_ID
+
+# 브라우저를 자동으로 열 수 없는 환경
+whooing auth login --client-id APP_ID --no-browser
+```
+
+기본 scope는 `read`입니다. 생성·수정·삭제 명령이 필요한 별도 프로필에서만 `write`를
+명시적으로 요청합니다.
+
+```sh
+whooing --profile writer auth login \
+  --client-id APP_ID \
+  --scope read \
+  --scope write
+```
+
+승인이 끝나면 후잉의 기본 섹션까지 프로필에 저장됩니다. 상태 확인과 로그아웃:
+
+```sh
+whooing auth status
+whooing auth logout
+```
+
+`auth logout`은 OAuth token을 서버에서 폐기한 뒤 로컬 프로필을 제거합니다. 서버 폐기 없이
+로컬 프로필만 제거하려면 `whooing auth logout --local-only`를 사용합니다.
+
+개인용 API key는 CLI가 새로 발급할 수 없습니다. 후잉 웹사이트의
+`계정 > 비밀번호 및 보안 > +AI 연동`에서 발급한 뒤 기존 방식으로 저장할 수 있습니다.
+
+```sh
+whooing profile set --api-key 발급된_인증키
 ```
 
 ## 인증 확인
@@ -33,7 +76,7 @@ whooing user get
 whooing sections list
 ```
 
-인증이 없으면 다음 중 하나를 설정합니다.
+OAuth 로그인을 사용하지 않는 경우에만 다음 환경 변수 방식을 사용합니다.
 
 ```sh
 export WHOOING_API_KEY=...
@@ -50,17 +93,25 @@ WHOOING_SECTION_ID=...
 ## 섹션 ID 찾기
 
 대부분의 재무 데이터 조회에는 `section_id`가 필요합니다. 사용자가 섹션 ID를 주지 않았다면
-먼저 섹션 목록을 조회합니다.
+OAuth 로그인에서 저장된 기본 섹션을 우선 사용합니다. 기본 섹션을 변경하거나 API key
+프로필에 처음 저장하려면 다음 명령을 사용합니다.
 
 ```sh
 whooing sections list
+whooing profile set --section-id s123
 ```
 
-응답의 `results[].section_id` 중 사용할 값을 골라 이후 명령에 넘깁니다.
+이후에는 `--section-id`를 생략할 수 있습니다.
 
 ```sh
-whooing accounts list --section-id "$WHOOING_SECTION_ID"
-whooing entries latest --section-id "$WHOOING_SECTION_ID"
+whooing accounts list
+whooing entries latest
+```
+
+저장된 기본값을 한 명령에서만 덮어쓸 수도 있습니다.
+
+```sh
+whooing accounts list --section-id s456
 ```
 
 ## 읽기 전용 목적별 명령
@@ -74,20 +125,20 @@ AI 에이전트는 사용자의 요청을 다음 명령으로 우선 매핑합�
 | 내 후잉 사용자 정보 | `whooing user get` |
 | 장부 또는 섹션 목록 | `whooing sections list` |
 | 기본 섹션 | `whooing sections default` |
-| 계정 목록, 자산/부채/수입/지출 항목 | `whooing accounts list --section-id SECTION_ID` |
-| 특정 계정 그룹 | `whooing accounts list --section-id SECTION_ID --account assets` |
-| 최근 거래 | `whooing entries latest --section-id SECTION_ID` |
-| 특정 기간 거래 | `whooing entries list --section-id SECTION_ID --param start_date=YYYYMMDD --param end_date=YYYYMMDD` |
-| 최근 사용한 거래 항목 | `whooing entries latest-items --section-id SECTION_ID` |
-| 예산 | `whooing budgets get expenses --section-id SECTION_ID` |
-| 장기 예산 목표 | `whooing budgets goal --section-id SECTION_ID` |
-| 자산 목표 | `whooing budgets capital-goal --section-id SECTION_ID` |
-| 재무 보고서, 잔액 보고서 | `whooing reports report --param section_id=SECTION_ID` |
-| 수입/지출 요약 | `whooing reports summary --account expenses --param section_id=SECTION_ID` |
-| 카드 사용 내역 | `whooing extras bill --param section_id=SECTION_ID` 또는 `whooing extras checkcard --param section_id=SECTION_ID` |
-| 입출금 흐름 | `whooing extras in-out --param section_id=SECTION_ID` |
-| 달력 보기 | `whooing extras calendar --param section_id=SECTION_ID` |
-| 알림 | `whooing extras notifications --section-id SECTION_ID` |
+| 계정 목록, 자산/부채/수입/지출 항목 | `whooing accounts list` |
+| 특정 계정 그룹 | `whooing accounts list --account assets` |
+| 최근 거래 | `whooing entries latest` |
+| 특정 기간 거래 | `whooing entries list --param start_date=YYYYMMDD --param end_date=YYYYMMDD` |
+| 최근 사용한 거래 항목 | `whooing entries latest-items` |
+| 예산 | `whooing budgets get expenses` |
+| 장기 예산 목표 | `whooing budgets goal` |
+| 자산 목표 | `whooing budgets capital-goal` |
+| 재무 보고서, 잔액 보고서 | `whooing reports report` |
+| 수입/지출 요약 | `whooing reports summary --account expenses` |
+| 카드 사용 내역 | `whooing extras bill` 또는 `whooing extras checkcard` |
+| 입출금 흐름 | `whooing extras in-out` |
+| 달력 보기 | `whooing extras calendar` |
+| 알림 | `whooing extras notifications` |
 
 ### 내 정보
 

@@ -38,6 +38,15 @@ CLI는 `typer` 기반으로 구성합니다. API 응답과 CLI 요청 payload �
 3. CLI 프로필 파일: 운영체제별 사용자 설정 디렉터리
 4. OS keychain: 필요해질 때 별도 optional dependency로 도입
 
+대화형 로그인은 OAuth 2.0 Authorization Code Flow with PKCE를 사용합니다. CLI는
+`127.0.0.1`의 임시 포트에서 localhost callback만 수신하고, state 검증 후 authorization
+code를 token으로 교환합니다. PKCE 공개 클라이언트이므로 App ID는 필요하지만 app secret을
+배포 파일에 포함하지 않습니다. 기본 scope는 `read`이며 `write`는 명시적으로 요청합니다.
+
+프로필에는 OAuth access token과 refresh token, App ID, 승인 scope 및 기본 section ID를
+저장합니다. section ID의 해석 우선순위는 명령 옵션, 환경 변수, 프로필입니다. 범용
+`api request`에는 section ID를 암묵적으로 주입하지 않습니다.
+
 토큰 저장소가 추가되더라도 라이브러리 클라이언트는 `api_key`, `access_token`, `auth`를
 명시적으로 받는 현재 형태를 유지합니다.
 
@@ -74,12 +83,13 @@ CLI는 라이브러리 예외를 잡아 종료 코드와 메시지로 변환합�
 CLI는 다음 명령 그룹을 제공합니다.
 
 - `profile`: 로컬 프로필 저장, 조회, 삭제
-- `auth`: OAuth 2.0 PKCE URL 생성, 토큰 교환, 갱신, 폐기, OAuth 1.0a 앱 인증 헬퍼
+- `auth`: OAuth 2.0 대화형 로그인, 상태 확인, 로그아웃, 저수준 PKCE·토큰·OAuth 1.0a 헬퍼
 - `api request`: 문서의 모든 API 경로를 직접 호출할 수 있는 범용 요청 명령
 - `user`, `sections`, `accounts`, `entries`, `budgets`, `reports`, `extras`: SDK 리소스 헬퍼에
   대응하는 전용 명령
 
 ```sh
+whooing auth login --client-id app
 whooing auth oauth2-url --client-id app --redirect-uri http://localhost/callback --scope read
 whooing --profile default profile set --api-key ...
 whooing --profile default sections list

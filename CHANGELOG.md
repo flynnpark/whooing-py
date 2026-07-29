@@ -4,6 +4,16 @@
 
 공개 API가 안정화되는 동안에도 버전은 semantic versioning을 기준으로 관리합니다.
 
+## Unreleased
+
+- OAuth 2.0 PKCE 브라우저 승인, localhost callback, token 교환과 프로필 저장을 한 번에
+  수행하는 `whooing auth login`을 추가했습니다.
+- OAuth 로그인 프로필에 refresh token, App ID, scope와 기본 section ID를 저장하고
+  `auth status`, `auth logout` 명령을 추가했습니다.
+- 리소스 명령이 명시 옵션, 환경 변수, 프로필 순서로 기본 section ID를 해석하도록
+  개선했습니다.
+- 보고서와 부가 기능 명령에 전용 `--section-id` 옵션을 추가했습니다.
+
 ## 0.1.0 - 2026-07-29
 
 - 타입 힌트를 제공하는 후잉 개발자 API 클라이언트 초기 구현을 추가했습니다.

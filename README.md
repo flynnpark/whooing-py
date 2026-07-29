@@ -239,6 +239,55 @@ CLI는 Typer 기반으로 제공되며, 프로필 저장, OAuth 헬퍼, 범용 A
 명령을 지원합니다. CLI 경계에서는 입력 payload를 Pydantic으로 검증하고, 전용 명령의
 API 응답은 리소스별 Pydantic 응답 모델로 검증한 뒤 출력합니다.
 
+가장 간단한 인증 방법은 OAuth 2.0 브라우저 로그인입니다. 먼저 후잉 `My Apps`에서
+애플리케이션을 등록하고 redirect URI에 `http://localhost`를 추가한 뒤 발급된 App ID를
+넘깁니다. 개인용 API key 자체는 후잉 웹사이트의 `계정 > 비밀번호 및 보안 > +AI 연동`에서만
+발급할 수 있습니다.
+
+```sh
+# 기본값은 읽기 전용 read scope입니다.
+whooing auth login --client-id APP_ID
+
+# 쓰기 명령도 사용할 프로필은 권한을 명시하여 승인합니다.
+whooing --profile writer auth login \
+  --client-id APP_ID \
+  --scope read \
+  --scope write
+```
+
+CLI가 브라우저를 열고 localhost에서 승인 callback을 받은 뒤 access token과 refresh token을
+현재 프로필에 저장합니다. 후잉의 기본 섹션도 함께 저장하므로 일반 리소스 명령에서
+`--section-id`를 생략할 수 있습니다.
+
+```sh
+whooing auth status
+whooing accounts list
+whooing entries latest
+
+# 저장된 기본값 대신 다른 섹션을 일시적으로 사용
+whooing accounts list --section-id s456
+
+# 기본 섹션만 변경
+whooing profile set --section-id s456
+
+# 서버에서 OAuth token을 폐기하고 로컬 프로필 제거
+whooing auth logout
+```
+
+브라우저를 자동으로 열 수 없는 환경에서는 `--no-browser`로 출력된 URL을 직접 열 수 있습니다.
+최초 로그인 이후에는 저장된 App ID를 재사용하므로 `--client-id`를 생략할 수 있습니다.
+
+```sh
+whooing auth login --client-id APP_ID --no-browser
+whooing auth login
+```
+
+기본 섹션의 우선순위는 명령의 `--section-id`, `WHOOING_SECTION_ID`, 현재 프로필 순서입니다.
+프로필 파일은 소유자만 읽고 쓸 수 있도록 저장되지만 access token과 refresh token이 포함되므로
+공유하거나 버전 관리에 추가하지 않아야 합니다.
+
+OAuth 각 단계를 별도로 제어해야 할 때는 저수준 헬퍼를 사용할 수 있습니다.
+
 ```sh
 whooing auth oauth2-url \
   --client-id app_id \
@@ -250,12 +299,14 @@ whooing auth oauth2-url \
 프로필 저장:
 
 ```sh
-whooing --profile default profile set --api-key 발급된_인증키
+whooing --profile default profile set \
+  --api-key 발급된_인증키 \
+  --section-id s123
 whooing --profile default sections list
 ```
 
-프로필에는 API key와 access token 중 하나만 저장되며, 다른 인증 방식으로 다시 저장하면
-기존 값은 제거됩니다. 프로필 파일은 소유자만 읽고 쓸 수 있도록 저장됩니다.
+프로필에는 API key와 access token 중 하나만 저장됩니다. 인증 방식을 바꾸면 기존 인증 값은
+제거되지만 저장된 기본 섹션은 유지됩니다.
 
 현재 디렉터리에 `.env`가 있으면 CLI 실행 시 자동으로 읽습니다. 셸에 export된 글로벌 환경
 변수가 있으면 그 값을 우선 사용하고, 없을 때 `.env`의 `WHOOING_API_KEY` 또는
