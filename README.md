@@ -239,25 +239,18 @@ CLI는 Typer 기반으로 제공되며, 프로필 저장, OAuth 헬퍼, 범용 A
 명령을 지원합니다. CLI 경계에서는 입력 payload를 Pydantic으로 검증하고, 전용 명령의
 API 응답은 리소스별 Pydantic 응답 모델로 검증한 뒤 출력합니다.
 
-가장 간단한 인증 방법은 OAuth 2.0 브라우저 로그인입니다. 먼저 후잉 `My Apps`에서
-애플리케이션을 등록하고 redirect URI에 `http://localhost`를 추가한 뒤 발급된 App ID를
-넘깁니다. 개인용 API key 자체는 후잉 웹사이트의 `계정 > 비밀번호 및 보안 > +AI 연동`에서만
-발급할 수 있습니다.
+개인용 CLI는 별도 App 등록 없이 후잉 AI 연동 키를 사용합니다. 다음 명령은 후잉 홈페이지를
+열고 키를 숨김 입력으로 받은 뒤 실제 API 호출로 검증합니다. 성공하면 키와 후잉의 기본 섹션을
+현재 프로필에 저장하므로 환경 변수나 셸 명령에 키를 노출할 필요가 없습니다.
 
 ```sh
-# 기본값은 읽기 전용 read scope입니다.
-whooing auth login --client-id APP_ID
-
-# 쓰기 명령도 사용할 프로필은 권한을 명시하여 승인합니다.
-whooing --profile writer auth login \
-  --client-id APP_ID \
-  --scope read \
-  --scope write
+whooing auth login
 ```
 
-CLI가 브라우저를 열고 localhost에서 승인 callback을 받은 뒤 access token과 refresh token을
-현재 프로필에 저장합니다. 후잉의 기본 섹션도 함께 저장하므로 일반 리소스 명령에서
-`--section-id`를 생략할 수 있습니다.
+명령의 안내에 따라 후잉 `계정 > 비밀번호 및 보안 > +AI 연동`에서 키를 발급하고 프롬프트에
+붙여 넣습니다. 입력값은 화면에 표시되지 않습니다.
+
+로그인이 완료되면 일반 리소스 명령에서 `--section-id`를 생략할 수 있습니다.
 
 ```sh
 whooing auth status
@@ -270,23 +263,32 @@ whooing accounts list --section-id s456
 # 기본 섹션만 변경
 whooing profile set --section-id s456
 
-# 서버에서 OAuth token을 폐기하고 로컬 프로필 제거
+# 로컬 프로필 제거
 whooing auth logout
 ```
 
-브라우저를 자동으로 열 수 없는 환경에서는 `--no-browser`로 출력된 URL을 직접 열 수 있습니다.
-최초 로그인 이후에는 저장된 App ID를 재사용하므로 `--client-id`를 생략할 수 있습니다.
+브라우저를 자동으로 열 수 없는 환경에서는 `--no-browser`로 후잉 홈페이지 열기를 생략합니다.
 
 ```sh
-whooing auth login --client-id APP_ID --no-browser
-whooing auth login
+whooing auth login --no-browser
 ```
 
 기본 섹션의 우선순위는 명령의 `--section-id`, `WHOOING_SECTION_ID`, 현재 프로필 순서입니다.
-프로필 파일은 소유자만 읽고 쓸 수 있도록 저장되지만 access token과 refresh token이 포함되므로
+프로필 파일은 소유자만 읽고 쓸 수 있도록 저장되지만 인증키가 포함되므로
 공유하거나 버전 관리에 추가하지 않아야 합니다.
 
-OAuth 각 단계를 별도로 제어해야 할 때는 저수준 헬퍼를 사용할 수 있습니다.
+배포용 App ID를 이미 보유한 개발자는 OAuth 2.0 PKCE 로그인을 사용할 수 있습니다. 기본
+scope는 `read`이며 쓰기 권한은 명시적으로 요청합니다.
+
+```sh
+whooing auth oauth-login --client-id APP_ID
+whooing --profile writer auth oauth-login \
+  --client-id APP_ID \
+  --scope read \
+  --scope write
+```
+
+OAuth 각 단계를 별도로 제어해야 할 때는 저수준 헬퍼도 사용할 수 있습니다.
 
 ```sh
 whooing auth oauth2-url \

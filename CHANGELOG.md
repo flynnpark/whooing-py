@@ -6,8 +6,11 @@
 
 ## Unreleased
 
+- 후잉의 개인용 외부 도구 정책에 맞춰 `whooing auth login`이 AI 연동 키를 숨김 입력으로
+  받아 검증·저장하도록 변경하고, 배포용 앱 OAuth 로그인은 `auth oauth-login`으로
+  분리했습니다.
 - OAuth 2.0 PKCE 브라우저 승인, localhost callback, token 교환과 프로필 저장을 한 번에
-  수행하는 `whooing auth login`을 추가했습니다.
+  수행하는 `whooing auth oauth-login`을 추가했습니다.
 - OAuth 로그인 프로필에 refresh token, App ID, scope와 기본 section ID를 저장하고
   `auth status`, `auth logout` 명령을 추가했습니다.
 - 리소스 명령이 명시 옵션, 환경 변수, 프로필 순서로 기본 section ID를 해석하도록

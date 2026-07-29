@@ -38,10 +38,14 @@ CLI는 `typer` 기반으로 구성합니다. API 응답과 CLI 요청 payload �
 3. CLI 프로필 파일: 운영체제별 사용자 설정 디렉터리
 4. OS keychain: 필요해질 때 별도 optional dependency로 도입
 
-대화형 로그인은 OAuth 2.0 Authorization Code Flow with PKCE를 사용합니다. CLI는
-`127.0.0.1`의 임시 포트에서 localhost callback만 수신하고, state 검증 후 authorization
-code를 token으로 교환합니다. PKCE 공개 클라이언트이므로 App ID는 필요하지만 app secret을
-배포 파일에 포함하지 않습니다. 기본 scope는 `read`이며 `write`는 명시적으로 요청합니다.
+개인용 대화형 로그인은 후잉의 AI 연동 키를 사용합니다. CLI가 후잉 홈페이지를 열고 키를
+숨김 프롬프트로 입력받은 뒤 기본 섹션 조회로 검증합니다. 키 생성·폐기는 공개 API가 없으므로
+후잉 `비밀번호 및 보안` 화면에서 수행합니다.
+
+배포용 App ID를 보유한 경우에는 OAuth 2.0 Authorization Code Flow with PKCE를 사용할 수
+있습니다. CLI는 `127.0.0.1`의 임시 포트에서 localhost callback만 수신하고, state 검증 후
+authorization code를 token으로 교환합니다. PKCE 공개 클라이언트이므로 app secret을 배포
+파일에 포함하지 않습니다. 기본 scope는 `read`이며 `write`는 명시적으로 요청합니다.
 
 프로필에는 OAuth access token과 refresh token, App ID, 승인 scope 및 기본 section ID를
 저장합니다. section ID의 해석 우선순위는 명령 옵션, 환경 변수, 프로필입니다. 범용
@@ -83,13 +87,15 @@ CLI는 라이브러리 예외를 잡아 종료 코드와 메시지로 변환합�
 CLI는 다음 명령 그룹을 제공합니다.
 
 - `profile`: 로컬 프로필 저장, 조회, 삭제
-- `auth`: OAuth 2.0 대화형 로그인, 상태 확인, 로그아웃, 저수준 PKCE·토큰·OAuth 1.0a 헬퍼
+- `auth`: AI 연동 키 로그인, OAuth 2.0 배포용 앱 로그인, 상태 확인, 로그아웃 및 저수준
+  인증 헬퍼
 - `api request`: 문서의 모든 API 경로를 직접 호출할 수 있는 범용 요청 명령
 - `user`, `sections`, `accounts`, `entries`, `budgets`, `reports`, `extras`: SDK 리소스 헬퍼에
   대응하는 전용 명령
 
 ```sh
-whooing auth login --client-id app
+whooing auth login
+whooing auth oauth-login --client-id app
 whooing auth oauth2-url --client-id app --redirect-uri http://localhost/callback --scope read
 whooing --profile default profile set --api-key ...
 whooing --profile default sections list

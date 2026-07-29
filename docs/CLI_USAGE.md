@@ -15,8 +15,8 @@
   사용합니다.
 - 프로필에는 API key와 access token 중 하나만 저장됩니다. 다른 인증 방식으로 다시 저장하면
   기존 값은 제거되며, 프로필 파일은 소유자만 읽고 쓸 수 있도록 저장됩니다.
-- OAuth 로그인을 사용하면 access token, refresh token, App ID와 기본 섹션이 현재 프로필에
-  저장됩니다.
+- `auth login`은 후잉 AI 연동 키를 숨김 입력으로 받아 검증하고 기본 섹션과 함께 현재
+  프로필에 저장합니다.
 - 섹션 ID는 명령의 `--section-id`, `WHOOING_SECTION_ID`, 현재 프로필 순서로 결정됩니다.
 
 ```sh
@@ -29,42 +29,38 @@ whooing profile set --from-env
 
 ## 최초 로그인
 
-후잉 `My Apps`에서 애플리케이션을 등록하고 redirect URI에 `http://localhost`를 추가합니다.
-그다음 발급된 App ID로 브라우저 로그인을 시작합니다.
+개인용 CLI는 별도 App 등록이 필요하지 않습니다. 로그인 명령을 실행한 뒤 안내에 따라 후잉
+`계정 > 비밀번호 및 보안 > +AI 연동`에서 키를 발급하고 숨김 프롬프트에 붙여 넣습니다.
 
 ```sh
-# 읽기 전용 권한
-whooing auth login --client-id APP_ID
+whooing auth login
 
 # 브라우저를 자동으로 열 수 없는 환경
-whooing auth login --client-id APP_ID --no-browser
+whooing auth login --no-browser
 ```
 
-기본 scope는 `read`입니다. 생성·수정·삭제 명령이 필요한 별도 프로필에서만 `write`를
-명시적으로 요청합니다.
+CLI는 키로 기본 섹션을 조회하여 인증을 검증한 뒤 키와 section ID를 현재 프로필에 저장합니다.
+키는 프롬프트와 최종 출력에 표시되지 않습니다.
 
-```sh
-whooing --profile writer auth login \
-  --client-id APP_ID \
-  --scope read \
-  --scope write
-```
-
-승인이 끝나면 후잉의 기본 섹션까지 프로필에 저장됩니다. 상태 확인과 로그아웃:
+상태 확인과 로그아웃:
 
 ```sh
 whooing auth status
 whooing auth logout
 ```
 
-`auth logout`은 OAuth token을 서버에서 폐기한 뒤 로컬 프로필을 제거합니다. 서버 폐기 없이
-로컬 프로필만 제거하려면 `whooing auth logout --local-only`를 사용합니다.
+AI 연동 키 프로필에서 `auth logout`은 로컬 프로필만 제거합니다. 키 자체를 폐기하려면 후잉
+`비밀번호 및 보안` 화면에서 AI 연동을 해제해야 합니다.
 
-개인용 API key는 CLI가 새로 발급할 수 없습니다. 후잉 웹사이트의
-`계정 > 비밀번호 및 보안 > +AI 연동`에서 발급한 뒤 기존 방식으로 저장할 수 있습니다.
+배포용 App ID를 이미 보유한 개발자는 OAuth 2.0 PKCE 로그인을 사용할 수 있습니다. 기본
+scope는 읽기 전용 `read`입니다.
 
 ```sh
-whooing profile set --api-key 발급된_인증키
+whooing auth oauth-login --client-id APP_ID
+whooing --profile writer auth oauth-login \
+  --client-id APP_ID \
+  --scope read \
+  --scope write
 ```
 
 ## 인증 확인
@@ -76,7 +72,7 @@ whooing user get
 whooing sections list
 ```
 
-OAuth 로그인을 사용하지 않는 경우에만 다음 환경 변수 방식을 사용합니다.
+대화형 로그인을 사용하지 않는 자동화 환경에서는 다음 환경 변수 방식을 사용할 수 있습니다.
 
 ```sh
 export WHOOING_API_KEY=...
