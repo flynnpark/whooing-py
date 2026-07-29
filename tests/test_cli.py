@@ -59,7 +59,7 @@ def test_oauth2_url_command_outputs_pkce_payload() -> None:
     assert payload["code_challenge_method"] == "S256"
 
 
-def test_login_completes_oauth_and_saves_default_section(
+def test_oauth_login_completes_oauth_and_saves_default_section(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -154,7 +154,7 @@ def test_login_completes_oauth_and_saves_default_section(
 
     result = runner.invoke(
         app,
-        ["--config", str(config_path), "auth", "login", "--client-id", "app"],
+        ["--config", str(config_path), "auth", "oauth-login", "--client-id", "app"],
     )
 
     profile = load_config(config_path).profiles["default"]
@@ -169,6 +169,77 @@ def test_login_completes_oauth_and_saves_default_section(
     assert profile.refresh_token == "refresh"
     assert profile.oauth_client_id == "app"
     assert profile.section_id == "s123"
+
+
+def test_login_prompts_for_ai_integration_key_and_saves_default_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+
+    def open_browser(url: str) -> bool:
+        assert url == "https://whooing.com"
+        return True
+
+    def prompt(text: str, *, hide_input: bool, err: bool) -> str:
+        assert text == "Whooing AI integration API key"
+        assert hide_input is True
+        assert err is True
+        return "api-key"
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://whooing.com/api/"
+            assert api_key == "api-key"
+            assert access_token is None
+            self.sections = self
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def default(self) -> ApiResponse[JsonValue]:
+            raw: JsonObject = {
+                "code": 200,
+                "results": {"section_id": "s123", "title": "생활비"},
+            }
+            return ApiResponse(
+                code=200,
+                message="",
+                rest_of_api=100,
+                error_parameters={},
+                results=raw["results"],
+                raw=raw,
+            )
+
+    monkeypatch.setattr("whooing.cli.webbrowser.open", open_browser)
+    monkeypatch.setattr("whooing.cli.typer.prompt", prompt)
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        ["--config", str(config_path), "auth", "login"],
+    )
+
+    profile = load_config(config_path).profiles["default"]
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "authenticated": True,
+        "auth_method": "api_key",
+        "profile": "default",
+        "section_id": "s123",
+    }
+    assert profile.api_key == "api-key"
+    assert profile.section_id == "s123"
+    assert "api-key" not in result.output
 
 
 def test_auth_status_does_not_expose_saved_tokens(tmp_path: Path) -> None:

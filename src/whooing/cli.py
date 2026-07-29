@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import webbrowser
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -237,8 +238,68 @@ def oauth2_url(
     _echo_payload(ctx, payload)
 
 
-@auth_app.command("login")
-def login(
+@auth_app.command("login", help="Set up a personal Whooing AI integration key.")
+def api_key_login(
+    ctx: typer.Context,
+    section_id: Annotated[
+        str | None,
+        typer.Option("--section-id", help="Default section ID to validate and save."),
+    ] = None,
+    no_browser: Annotated[
+        bool,
+        typer.Option("--no-browser", help="Do not open the Whooing website."),
+    ] = False,
+) -> None:
+    if section_id is not None and not section_id.strip():
+        raise ClickException("--section-id must not be empty.")
+    section_id = section_id.strip() if section_id is not None else None
+
+    typer.echo(
+        "Create a key at Whooing > Account > Password & Security > AI integration.",
+        err=True,
+    )
+    if not no_browser and not webbrowser.open("https://whooing.com"):
+        typer.echo(
+            "Unable to open a browser automatically. Open https://whooing.com manually.",
+            err=True,
+        )
+    api_key = typer.prompt(
+        "Whooing AI integration API key",
+        hide_input=True,
+        err=True,
+    ).strip()
+    if not api_key:
+        raise ClickException("API key must not be empty.")
+
+    state = _state(ctx)
+    resolved_section_id = _login_section_id(
+        base_url=state.base_url,
+        auth_kwargs={"api_key": api_key},
+        requested_section_id=section_id,
+    )
+    config = set_profile(
+        load_config(state.config_path),
+        name=state.profile,
+        api_key=api_key,
+        section_id=resolved_section_id,
+    )
+    save_config(state.config_path, config)
+    _echo_payload(
+        ctx,
+        {
+            "profile": state.profile,
+            "authenticated": True,
+            "auth_method": "api_key",
+            "section_id": resolved_section_id,
+        },
+    )
+
+
+@auth_app.command(
+    "oauth-login",
+    help="Sign in with a registered app using OAuth 2.0 PKCE.",
+)
+def oauth_login(
     ctx: typer.Context,
     client_id: Annotated[
         str | None,
@@ -310,7 +371,7 @@ def login(
         )
     resolved_section_id = _login_section_id(
         base_url=state.base_url,
-        access_token=token.access_token,
+        auth_kwargs={"access_token": token.access_token},
         requested_section_id=section_id,
     )
     updated = set_oauth_profile(
@@ -334,7 +395,7 @@ def login(
     )
 
 
-@auth_app.command("status")
+@auth_app.command("status", help="Show authentication metadata for the current profile.")
 def auth_status(ctx: typer.Context) -> None:
     state = _state(ctx)
     profile = load_config(state.config_path).profiles.get(state.profile)
@@ -359,7 +420,7 @@ def auth_status(ctx: typer.Context) -> None:
     )
 
 
-@auth_app.command("logout")
+@auth_app.command("logout", help="Remove the current profile and revoke OAuth when available.")
 def logout(
     ctx: typer.Context,
     local_only: Annotated[
@@ -1919,10 +1980,10 @@ def _fields_with_section(
 def _login_section_id(
     *,
     base_url: str,
-    access_token: str,
+    auth_kwargs: _ClientAuthKwargs,
     requested_section_id: str | None,
 ) -> str | None:
-    with WhooingClient(base_url=base_url, access_token=access_token) as client:
+    with WhooingClient(base_url=base_url, **auth_kwargs) as client:
         if requested_section_id is not None:
             response = client.sections.get(requested_section_id)
         else:
