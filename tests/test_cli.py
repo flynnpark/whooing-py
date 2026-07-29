@@ -14,6 +14,8 @@ from typer.testing import CliRunner
 from whooing import __version__
 from whooing.auth import OAuth1RequestToken, OAuth2Token
 from whooing.cli import app, main
+from whooing.cli_config import CliConfig, CliProfile, load_config, save_config
+from whooing.cli_oauth import OAuthAuthorizationCode
 from whooing.response import ApiResponse
 from whooing.types import JsonObject, JsonValue, RequestData
 
@@ -55,6 +57,191 @@ def test_oauth2_url_command_outputs_pkce_payload() -> None:
     assert query["state"] == ["state"]
     assert query["code_challenge"] == [payload["code_challenge"]]
     assert payload["code_challenge_method"] == "S256"
+
+
+def test_login_completes_oauth_and_saves_default_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+
+    def authorize_in_browser(
+        *,
+        client_id: str,
+        scopes: list[str],
+        timeout_seconds: float,
+        open_browser: bool,
+        authorization_endpoint: str,
+    ) -> OAuthAuthorizationCode:
+        assert client_id == "app"
+        assert scopes == ["read"]
+        assert timeout_seconds == 180.0
+        assert open_browser is True
+        assert authorization_endpoint == "https://whooing.com/oauth2/authorize"
+        return OAuthAuthorizationCode(
+            code="code",
+            code_verifier="verifier",
+            redirect_uri="http://localhost:1234/callback",
+        )
+
+    class FakeOAuth2TokenClient:
+        def __init__(self, *, token_endpoint: str = "", revoke_endpoint: str = "") -> None:
+            assert token_endpoint == "https://whooing.com/oauth2/token"
+
+        def __enter__(self) -> FakeOAuth2TokenClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def exchange_code(
+            self,
+            *,
+            client_id: str,
+            code: str,
+            redirect_uri: str,
+            code_verifier: str | None = None,
+        ) -> OAuth2Token:
+            assert client_id == "app"
+            assert code == "code"
+            assert redirect_uri == "http://localhost:1234/callback"
+            assert code_verifier == "verifier"
+            return OAuth2Token(
+                access_token="access",
+                token_type="Bearer",
+                expires_in=3600,
+                refresh_token="refresh",
+                scope="read",
+                raw={"access_token": "access"},
+            )
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert base_url == "https://whooing.com/api/"
+            assert api_key is None
+            assert access_token == "access"
+            self.sections = self
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def default(self) -> ApiResponse[JsonValue]:
+            raw: JsonObject = {
+                "code": 200,
+                "results": {"section_id": "s123", "title": "생활비"},
+            }
+            return ApiResponse(
+                code=200,
+                message="",
+                rest_of_api=100,
+                error_parameters={},
+                results=raw["results"],
+                raw=raw,
+            )
+
+    monkeypatch.setattr("whooing.cli.authorize_in_browser", authorize_in_browser)
+    monkeypatch.setattr("whooing.cli.OAuth2TokenClient", FakeOAuth2TokenClient)
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        ["--config", str(config_path), "auth", "login", "--client-id", "app"],
+    )
+
+    profile = load_config(config_path).profiles["default"]
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "authenticated": True,
+        "profile": "default",
+        "scope": "read",
+        "section_id": "s123",
+    }
+    assert profile.access_token == "access"
+    assert profile.refresh_token == "refresh"
+    assert profile.oauth_client_id == "app"
+    assert profile.section_id == "s123"
+
+
+def test_auth_status_does_not_expose_saved_tokens(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    save_config(
+        config_path,
+        CliConfig(
+            profiles={
+                "default": CliProfile(
+                    access_token="access-secret",
+                    refresh_token="refresh-secret",
+                    oauth_client_id="app",
+                    oauth_scope="read",
+                    section_id="s123",
+                )
+            }
+        ),
+    )
+
+    result = runner.invoke(app, ["--config", str(config_path), "auth", "status"])
+
+    assert result.exit_code == 0
+    assert "access-secret" not in result.stdout
+    assert "refresh-secret" not in result.stdout
+    assert json.loads(result.stdout) == {
+        "auth_method": "oauth2",
+        "authenticated": True,
+        "client_id": "app",
+        "profile": "default",
+        "scope": "read",
+        "section_id": "s123",
+    }
+
+
+def test_logout_revokes_refresh_token_and_removes_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    save_config(
+        config_path,
+        CliConfig(
+            profiles={
+                "default": CliProfile(
+                    access_token="access",
+                    refresh_token="refresh",
+                    oauth_client_id="app",
+                )
+            }
+        ),
+    )
+
+    class FakeOAuth2TokenClient:
+        def __init__(self, *, token_endpoint: str = "", revoke_endpoint: str = "") -> None:
+            assert revoke_endpoint == "https://whooing.com/oauth2/revoke"
+
+        def __enter__(self) -> FakeOAuth2TokenClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+        def revoke(self, token: str) -> JsonObject:
+            assert token == "refresh"
+            return {}
+
+    monkeypatch.setattr("whooing.cli.OAuth2TokenClient", FakeOAuth2TokenClient)
+
+    result = runner.invoke(app, ["--config", str(config_path), "auth", "logout"])
+
+    assert result.exit_code == 0
+    assert load_config(config_path).profiles == {}
+    assert json.loads(result.stdout)["revoked"] is True
 
 
 def test_version_option_outputs_package_version() -> None:
@@ -604,3 +791,163 @@ def test_resource_commands_use_client_resources(monkeypatch: pytest.MonkeyPatch)
     assert accounts_result.exit_code == 0
     assert json.loads(sections_result.stdout)["results"] == [{"section_id": "s1"}]
     assert json.loads(accounts_result.stdout)["results"] == [{"account_id": "x1"}]
+
+
+def test_resource_command_uses_section_saved_in_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "profile",
+            "set",
+            "--api-key",
+            "secret",
+            "--section-id",
+            "s123",
+        ],
+    )
+    monkeypatch.delenv("WHOOING_SECTION_ID", raising=False)
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    class FakeAccounts:
+        def list(self, *, section_id: str, **params: object) -> ApiResponse[JsonValue]:
+            assert section_id == "s123"
+            assert params == {}
+            raw: JsonObject = {"code": 200, "results": {}}
+            return ApiResponse(
+                code=200,
+                message="",
+                rest_of_api=100,
+                error_parameters={},
+                results={},
+                raw=raw,
+            )
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            assert api_key == "secret"
+            self.accounts = FakeAccounts()
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        ["--config", str(config_path), "accounts", "list"],
+    )
+
+    assert result.exit_code == 0
+
+
+def test_explicit_section_overrides_environment_and_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "profile",
+            "set",
+            "--api-key",
+            "secret",
+            "--section-id",
+            "profile-section",
+        ],
+    )
+    monkeypatch.setenv("WHOOING_SECTION_ID", "environment-section")
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    class FakeAccounts:
+        def list(self, *, section_id: str, **params: object) -> ApiResponse[JsonValue]:
+            assert section_id == "explicit-section"
+            raw: JsonObject = {"code": 200, "results": {}}
+            return ApiResponse(
+                code=200,
+                message="",
+                rest_of_api=100,
+                error_parameters={},
+                results={},
+                raw=raw,
+            )
+
+    class FakeWhooingClient:
+        def __init__(
+            self,
+            *,
+            base_url: str,
+            api_key: str | None = None,
+            access_token: str | None = None,
+        ) -> None:
+            self.accounts = FakeAccounts()
+
+        def __enter__(self) -> FakeWhooingClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+
+    monkeypatch.setattr("whooing.cli.WhooingClient", FakeWhooingClient)
+
+    result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "accounts",
+            "list",
+            "--section-id",
+            "explicit-section",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+
+def test_resource_command_explains_how_to_configure_missing_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "config.json"
+    runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_path),
+            "profile",
+            "set",
+            "--api-key",
+            "secret",
+        ],
+    )
+    monkeypatch.delenv("WHOOING_SECTION_ID", raising=False)
+    monkeypatch.delenv("WHOOING_API_KEY", raising=False)
+    monkeypatch.delenv("WHOOING_ACCESS_TOKEN", raising=False)
+
+    result = runner.invoke(
+        app,
+        ["--config", str(config_path), "accounts", "list"],
+    )
+
+    assert result.exit_code != 0
+    assert "profile set --section-id" in strip_ansi(result.output)

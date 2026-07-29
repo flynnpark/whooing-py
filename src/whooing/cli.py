@@ -26,13 +26,16 @@ from whooing.auth import (
 )
 from whooing.cli_config import (
     CliConfigError,
+    clear_profile_section,
     default_config_path,
     load_config,
     mask_secret,
     remove_profile,
     save_config,
+    set_oauth_profile,
     set_profile,
 )
+from whooing.cli_oauth import OAuthCallbackError, authorize_in_browser
 from whooing.cli_output import render_error, render_output
 from whooing.exceptions import WhooingError
 from whooing.pydantic_models import (
@@ -232,6 +235,158 @@ def oauth2_url(
         "code_challenge_method": challenge.method,
     }
     _echo_payload(ctx, payload)
+
+
+@auth_app.command("login")
+def login(
+    ctx: typer.Context,
+    client_id: Annotated[
+        str | None,
+        typer.Option(
+            "--client-id",
+            help="Whooing app client ID. Reuses the current OAuth profile when omitted.",
+        ),
+    ] = None,
+    scope: Annotated[
+        list[str] | None,
+        typer.Option("--scope", help="OAuth scope. Repeat for multiple scopes."),
+    ] = None,
+    section_id: Annotated[
+        str | None,
+        typer.Option("--section-id", help="Default section ID to save after login."),
+    ] = None,
+    no_browser: Annotated[
+        bool,
+        typer.Option("--no-browser", help="Print the authorization URL without opening it."),
+    ] = False,
+    timeout: Annotated[
+        float,
+        typer.Option("--timeout", help="Seconds to wait for the browser callback."),
+    ] = 180.0,
+    authorization_endpoint: Annotated[
+        str,
+        typer.Option("--authorization-endpoint", help="OAuth authorization endpoint."),
+    ] = "https://whooing.com/oauth2/authorize",
+    token_endpoint: Annotated[
+        str,
+        typer.Option("--token-endpoint", help="OAuth token endpoint."),
+    ] = "https://whooing.com/oauth2/token",
+) -> None:
+    state = _state(ctx)
+    config = load_config(state.config_path)
+    current = config.profiles.get(state.profile)
+    resolved_client_id = client_id or (current.oauth_client_id if current is not None else None)
+    if resolved_client_id is None or not resolved_client_id.strip():
+        raise ClickException(
+            "Whooing app registration is required. Provide the issued app ID with --client-id."
+        )
+    resolved_client_id = resolved_client_id.strip()
+    if timeout <= 0:
+        raise ClickException("--timeout must be greater than zero.")
+    scopes = [value.strip() for value in (scope or ["read"])]
+    if any(not value for value in scopes):
+        raise ClickException("--scope must not be empty.")
+    if section_id is not None and not section_id.strip():
+        raise ClickException("--section-id must not be empty.")
+    section_id = section_id.strip() if section_id is not None else None
+
+    try:
+        authorization = authorize_in_browser(
+            client_id=resolved_client_id,
+            scopes=scopes,
+            timeout_seconds=timeout,
+            open_browser=not no_browser,
+            authorization_endpoint=authorization_endpoint,
+        )
+    except OAuthCallbackError as exc:
+        raise ClickException(str(exc)) from exc
+
+    with OAuth2TokenClient(token_endpoint=token_endpoint) as token_client:
+        token = token_client.exchange_code(
+            client_id=resolved_client_id,
+            code=authorization.code,
+            redirect_uri=authorization.redirect_uri,
+            code_verifier=authorization.code_verifier,
+        )
+    resolved_section_id = _login_section_id(
+        base_url=state.base_url,
+        access_token=token.access_token,
+        requested_section_id=section_id,
+    )
+    updated = set_oauth_profile(
+        config,
+        name=state.profile,
+        access_token=token.access_token,
+        refresh_token=token.refresh_token,
+        client_id=resolved_client_id,
+        scope=token.scope,
+        section_id=resolved_section_id,
+    )
+    save_config(state.config_path, updated)
+    _echo_payload(
+        ctx,
+        {
+            "profile": state.profile,
+            "authenticated": True,
+            "scope": token.scope,
+            "section_id": resolved_section_id,
+        },
+    )
+
+
+@auth_app.command("status")
+def auth_status(ctx: typer.Context) -> None:
+    state = _state(ctx)
+    profile = load_config(state.config_path).profiles.get(state.profile)
+    if profile is None:
+        raise ClickException(f"Profile not found: {state.profile}")
+    if profile.api_key is not None:
+        auth_method: str | None = "api_key"
+    elif profile.access_token is not None:
+        auth_method = "oauth2" if profile.oauth_client_id is not None else "access_token"
+    else:
+        auth_method = None
+    _echo_payload(
+        ctx,
+        {
+            "profile": state.profile,
+            "authenticated": auth_method is not None,
+            "auth_method": auth_method,
+            "client_id": profile.oauth_client_id,
+            "scope": profile.oauth_scope,
+            "section_id": profile.section_id,
+        },
+    )
+
+
+@auth_app.command("logout")
+def logout(
+    ctx: typer.Context,
+    local_only: Annotated[
+        bool,
+        typer.Option("--local-only", help="Remove the profile without revoking its OAuth token."),
+    ] = False,
+    revoke_endpoint: Annotated[
+        str,
+        typer.Option("--revoke-endpoint", help="OAuth revoke endpoint."),
+    ] = "https://whooing.com/oauth2/revoke",
+) -> None:
+    state = _state(ctx)
+    config = load_config(state.config_path)
+    profile = config.profiles.get(state.profile)
+    if profile is None:
+        raise ClickException(f"Profile not found: {state.profile}")
+    revoked = False
+    token_to_revoke = profile.refresh_token or profile.access_token
+    if not local_only and token_to_revoke is not None:
+        with OAuth2TokenClient(revoke_endpoint=revoke_endpoint) as client:
+            client.revoke(token_to_revoke)
+        revoked = True
+    save_config(state.config_path, remove_profile(config, name=state.profile))
+    _echo_payload(
+        ctx,
+        {"profile": state.profile, "removed": True, "revoked": revoked},
+    )
 
 
 @auth_app.command("exchange-code")
@@ -509,7 +664,7 @@ def sections_sort(
 @accounts_app.command("list")
 def accounts_list(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     account: Annotated[
         str | None,
         typer.Option("--account", help="Optional account group, such as assets or expenses."),
@@ -519,6 +674,7 @@ def accounts_list(
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         if account is None:
             response = client.accounts.list(section_id=section_id, **_parse_fields(param))
@@ -537,8 +693,9 @@ def accounts_get(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
     account_id: Annotated[str, typer.Argument(help="Account ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.get(account, account_id, section_id=section_id)
     _echo_response(ctx, response, AccountResponse)
@@ -549,8 +706,9 @@ def accounts_exists(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
     account_id: Annotated[str, typer.Argument(help="Account ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.exists(account, account_id, section_id=section_id)
     _echo_response(ctx, response, AccountExistenceResponse)
@@ -560,13 +718,14 @@ def accounts_exists(
 def accounts_create(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     title: Annotated[str, typer.Option("--title", help="Account title.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Additional form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.create(
             account,
@@ -582,12 +741,13 @@ def accounts_update(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
     account_id: Annotated[str, typer.Argument(help="Account ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.update(
             account,
@@ -603,8 +763,9 @@ def accounts_delete(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
     account_id: Annotated[str, typer.Argument(help="Account ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.delete(account, account_id, section_id=section_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -614,9 +775,10 @@ def accounts_delete(
 def accounts_sort(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     account_id: Annotated[list[str], typer.Argument(help="Account IDs in desired order.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.accounts.sort(account, section_id=section_id, account_ids=account_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -625,12 +787,13 @@ def accounts_sort(
 @entries_app.command("list")
 def entries_list(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.list(section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, EntriesListResponse)
@@ -639,12 +802,13 @@ def entries_list(
 @entries_app.command("latest")
 def entries_latest(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.latest(section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, EntriesResponse)
@@ -654,8 +818,9 @@ def entries_latest(
 def entries_get(
     ctx: typer.Context,
     entry_id: Annotated[str, typer.Argument(help="Entry ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.get(entry_id, section_id=section_id)
     _echo_response(ctx, response, EntryResponse)
@@ -664,12 +829,13 @@ def entries_get(
 @entries_app.command("create")
 def entries_create(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     field: Annotated[
         list[str],
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.create(section_id=section_id, **_parse_fields(field))
     _echo_response(ctx, response, EntryResponse)
@@ -679,12 +845,13 @@ def entries_create(
 def entries_update(
     ctx: typer.Context,
     entry_id: Annotated[str, typer.Argument(help="Entry ID.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     field: Annotated[
         list[str],
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.update(entry_id, section_id=section_id, **_parse_fields(field))
     _echo_response(ctx, response, EntryResponse)
@@ -694,12 +861,13 @@ def entries_update(
 def entries_update_many(
     ctx: typer.Context,
     entry_id: Annotated[list[str], typer.Argument(help="Entry IDs.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     field: Annotated[
         list[str],
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.update_many(
             entry_id,
@@ -713,8 +881,9 @@ def entries_update_many(
 def entries_delete(
     ctx: typer.Context,
     entry_id: Annotated[list[str], typer.Argument(help="Entry IDs.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.delete(entry_id, section_id=section_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -723,8 +892,9 @@ def entries_delete(
 @entries_app.command("latest-items")
 def entries_latest_items(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.latest_items(section_id=section_id)
     _echo_response(ctx, response, EntryNameAmountResponse)
@@ -734,12 +904,13 @@ def entries_latest_items(
 def entries_analytics(
     ctx: typer.Context,
     name: Annotated[str, typer.Argument(help="Analytics endpoint name.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.analytics(name, section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, _entry_analytics_model(name))
@@ -748,9 +919,10 @@ def entries_analytics(
 @entries_app.command("parse-outside")
 def entries_parse_outside(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     rows: Annotated[str, typer.Option("--rows", help="Outside entry rows.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.entries.parse_outside(section_id=section_id, rows=rows)
     _echo_response(ctx, response, EntriesResponse)
@@ -770,12 +942,13 @@ def entries_report_outside_source(
 def budgets_get(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.get(account, section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, BudgetsResponse)
@@ -785,13 +958,14 @@ def budgets_get(
 def budgets_update(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     target_ym: Annotated[str, typer.Option("--target-ym", help="Target year-month.")],
     amount: Annotated[
         list[str],
         typer.Option("--amount", "-a", help="Budget amount as account_id=amount. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.update(
             account,
@@ -806,14 +980,15 @@ def budgets_update(
 def budgets_update_basic_total(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     start_date: Annotated[str, typer.Option("--start-date", help="Start date.")],
     end_date: Annotated[str, typer.Option("--end-date", help="End date.")],
     month: Annotated[
         list[str],
         typer.Option("--month", "-m", help="Monthly total as yyyymm=amount. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.update_basic_total(
             account,
@@ -829,10 +1004,11 @@ def budgets_update_basic_total(
 def budgets_delete(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     start_date: Annotated[str, typer.Option("--start-date", help="Start date.")],
     end_date: Annotated[str, typer.Option("--end-date", help="End date.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.delete(
             account,
@@ -846,12 +1022,13 @@ def budgets_delete(
 @budgets_app.command("goal")
 def budgets_goal(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.get_goal(section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, BudgetGoalResponse)
@@ -860,12 +1037,13 @@ def budgets_goal(
 @budgets_app.command("update-goal")
 def budgets_update_goal(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.update_goal(section_id=section_id, **_parse_fields(field))
     _echo_response(ctx, response, BudgetGoalResponse)
@@ -874,8 +1052,9 @@ def budgets_update_goal(
 @budgets_app.command("delete-goal")
 def budgets_delete_goal(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.delete_goal(section_id=section_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -884,12 +1063,13 @@ def budgets_delete_goal(
 @budgets_app.command("capital-goal")
 def budgets_capital_goal(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.budgets.get_capital_goal(section_id=section_id, **_parse_fields(param))
     _echo_response(ctx, response, CapitalGoalResponse)
@@ -898,12 +1078,13 @@ def budgets_capital_goal(
 @budgets_app.command("update-capital-goal")
 def budgets_update_capital_goal(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     month: Annotated[
         list[str],
         typer.Option("--month", "-m", help="Capital goal as yyyymm=amount. Repeatable."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         monthly_goals = cast(Mapping[int | str, int | float], _parse_number_map(month))
         response = client.budgets.update_capital_goal(
@@ -918,13 +1099,18 @@ def reports_report(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.reports.report(account, account_id, **_parse_fields(param))
+        response = client.reports.report(
+            account,
+            account_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     _echo_response(ctx, response, ReportResponse)
 
 
@@ -932,24 +1118,28 @@ def reports_report(
 def reports_summary(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.reports.summary(account, **_parse_fields(param))
+        response = client.reports.summary(
+            account,
+            **_fields_with_section(ctx, section_id, param),
+        )
     _echo_response(ctx, response, ReportSummaryResponse)
 
 
 @reports_app.command("custom-rows")
 def reports_custom_rows(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     report: Annotated[
         Literal["report_bs", "report_pl"],
         typer.Option("--report", help="Report type."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     action: Annotated[
         Literal["list", "info"],
         typer.Option("--action", help="Custom report action."),
@@ -960,6 +1150,7 @@ def reports_custom_rows(
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.reports.custom_rows(
             section_id=section_id,
@@ -974,7 +1165,6 @@ def reports_custom_rows(
 @reports_app.command("update-custom-rows")
 def reports_update_custom_rows(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     report: Annotated[
         Literal["report_bs", "report_pl"],
         typer.Option("--report", help="Report type."),
@@ -983,11 +1173,13 @@ def reports_update_custom_rows(
         Literal["post", "delete", "sort", "clean_disabled"],
         typer.Option("--action", help="Custom report action."),
     ],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.reports.update_custom_rows(
             section_id=section_id,
@@ -1003,13 +1195,18 @@ def extras_frequent_items(
     ctx: typer.Context,
     slot: Annotated[str | None, typer.Option("--slot", help="Frequent item slot.")] = None,
     item_id: Annotated[str | None, typer.Option("--item-id", help="Frequent item ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.frequent_items(slot, item_id, **_parse_fields(param))
+        response = client.extras.frequent_items(
+            slot,
+            item_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     model = FrequentItemsSlotsResponse if slot is None else FrequentItemsResponse
     _echo_response(ctx, response, model)
 
@@ -1018,13 +1215,14 @@ def extras_frequent_items(
 def extras_create_frequent_item(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     item: Annotated[str, typer.Option("--item", help="Item name.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Additional form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.create_frequent_item(
             slot,
@@ -1055,8 +1253,9 @@ def extras_delete_frequent_item(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
     item_id: Annotated[list[str], typer.Argument(help="Frequent item IDs.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.delete_frequent_item(slot, item_id, section_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -1066,9 +1265,10 @@ def extras_delete_frequent_item(
 def extras_sort_frequent_items(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     item_id: Annotated[list[str], typer.Argument(help="Frequent item IDs in desired order.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.sort_frequent_items(slot, section_id=section_id, item_ids=item_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -1079,13 +1279,18 @@ def extras_monthly_items(
     ctx: typer.Context,
     slot: Annotated[str | None, typer.Option("--slot", help="Monthly item slot.")] = None,
     item_id: Annotated[str | None, typer.Option("--item-id", help="Monthly item ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.monthly_items(item_id, slot=slot, **_parse_fields(param))
+        response = client.extras.monthly_items(
+            item_id,
+            slot=slot,
+            **_fields_with_section(ctx, section_id, param),
+        )
     model = MonthlyItemsResponse if slot is None and item_id is None else MonthlyItemsListResponse
     _echo_response(ctx, response, model)
 
@@ -1093,13 +1298,14 @@ def extras_monthly_items(
 @extras_app.command("create-monthly-item")
 def extras_create_monthly_item(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     item: Annotated[str, typer.Option("--item", help="Item name.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Additional form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.create_monthly_item(
             section_id=section_id,
@@ -1127,8 +1333,9 @@ def extras_update_monthly_item(
 def extras_delete_monthly_item(
     ctx: typer.Context,
     item_id: Annotated[list[str], typer.Argument(help="Monthly item IDs.")],
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.delete_monthly_item(item_id, section_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -1138,13 +1345,17 @@ def extras_delete_monthly_item(
 def extras_bill(
     ctx: typer.Context,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.bill(account_id, **_parse_fields(param))
+        response = client.extras.bill(
+            account_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     _echo_response(ctx, response, BillsListResponse if account_id is None else BillsResponse)
 
 
@@ -1152,13 +1363,17 @@ def extras_bill(
 def extras_checkcard(
     ctx: typer.Context,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.checkcard(account_id, **_parse_fields(param))
+        response = client.extras.checkcard(
+            account_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     model = CheckcardsListResponse if account_id is None else CheckcardsResponse
     _echo_response(ctx, response, model)
 
@@ -1168,13 +1383,18 @@ def extras_in_out(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.in_out(account, account_id, **_parse_fields(param))
+        response = client.extras.in_out(
+            account,
+            account_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     if account is None:
         model: PydanticModel[object] = InOutListResponse
     elif account_id is None:
@@ -1187,13 +1407,16 @@ def extras_in_out(
 @extras_app.command("calendar")
 def extras_calendar(
     ctx: typer.Context,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.calendar(**_parse_fields(param))
+        response = client.extras.calendar(
+            **_fields_with_section(ctx, section_id, param),
+        )
     _echo_response(ctx, response, CalendarResponse)
 
 
@@ -1201,27 +1424,32 @@ def extras_calendar(
 def extras_post_its(
     ctx: typer.Context,
     post_it_id: Annotated[str | None, typer.Option("--post-it-id", help="Post-it ID.")] = None,
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     param: Annotated[
         list[str] | None,
         typer.Option("--param", "-p", help="Query parameter as key=value. Repeatable."),
     ] = None,
 ) -> None:
     with _client_from_state(_state(ctx)) as client:
-        response = client.extras.post_its(post_it_id, **_parse_fields(param))
+        response = client.extras.post_its(
+            post_it_id,
+            **_fields_with_section(ctx, section_id, param),
+        )
     _echo_response(ctx, response, PostItsResponse if post_it_id is None else PostItResponse)
 
 
 @extras_app.command("create-post-it")
 def extras_create_post_it(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     title: Annotated[str, typer.Option("--title", help="Post-it title.")],
     contents: Annotated[str, typer.Option("--contents", help="Post-it contents.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
     field: Annotated[
         list[str] | None,
         typer.Option("--field", "-f", help="Additional form field as key=value. Repeatable."),
     ] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.create_post_it(
             section_id=section_id,
@@ -1249,9 +1477,10 @@ def extras_update_post_it(
 @extras_app.command("delete-post-it")
 def extras_delete_post_it(
     ctx: typer.Context,
-    section_id: Annotated[str, typer.Option("--section-id", help="Section ID.")],
     post_it_id: Annotated[list[str], typer.Argument(help="Post-it IDs.")],
+    section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _section_id(ctx, section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.delete_post_it(section_id, post_it_id)
     _echo_response(ctx, response, WhooingEnvelope)
@@ -1507,6 +1736,7 @@ def extras_notifications(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
 ) -> None:
+    section_id = _optional_section_id(_state(ctx), section_id)
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.notifications(section_id=section_id)
     _echo_response(ctx, response, NotificationsResponse)
@@ -1531,20 +1761,46 @@ def profile_set(
         bool,
         typer.Option("--from-env", help="Store WHOOING_API_KEY or WHOOING_ACCESS_TOKEN."),
     ] = False,
+    section_id: Annotated[
+        str | None,
+        typer.Option("--section-id", help="Default section ID."),
+    ] = None,
+    clear_section_id: Annotated[
+        bool,
+        typer.Option("--clear-section-id", help="Remove the saved default section ID."),
+    ] = False,
 ) -> None:
-    resolved_api_key, resolved_access_token = _profile_credentials(
-        api_key=api_key,
-        access_token=access_token,
-        from_env=from_env,
-    )
+    if section_id is not None and not section_id.strip():
+        raise ClickException("--section-id must not be empty.")
+    section_id = section_id.strip() if section_id is not None else None
+    if clear_section_id and section_id is not None:
+        raise ClickException("Use only one of --section-id or --clear-section-id.")
+    has_credentials = api_key is not None or access_token is not None or from_env
+    resolved_api_key: str | None = None
+    resolved_access_token: str | None = None
+    if has_credentials:
+        resolved_api_key, resolved_access_token = _profile_credentials(
+            api_key=api_key,
+            access_token=access_token,
+            from_env=from_env,
+        )
+    elif section_id is None and not clear_section_id:
+        raise ClickException(
+            "Provide --api-key, --access-token, or --from-env. "
+            "To update only the default section, use --section-id or --clear-section-id."
+        )
     state = _state(ctx)
-    config = set_profile(
-        load_config(state.config_path),
+    config = load_config(state.config_path)
+    updated = set_profile(
+        config,
         name=state.profile,
         api_key=resolved_api_key,
         access_token=resolved_access_token,
+        section_id=section_id,
     )
-    save_config(state.config_path, config)
+    if clear_section_id:
+        updated = clear_profile_section(updated, name=state.profile)
+    save_config(state.config_path, updated)
     _echo_payload(ctx, {"profile": state.profile, "saved": True})
 
 
@@ -1560,6 +1816,10 @@ def profile_show(ctx: typer.Context) -> None:
             "profile": state.profile,
             "api_key": mask_secret(profile.api_key),
             "access_token": mask_secret(profile.access_token),
+            "refresh_token": mask_secret(profile.refresh_token),
+            "oauth_client_id": profile.oauth_client_id,
+            "oauth_scope": profile.oauth_scope,
+            "section_id": profile.section_id,
         },
     )
 
@@ -1613,6 +1873,72 @@ def _client_from_state(state: CliState) -> Iterator[WhooingClient]:
     auth_kwargs = _auth_kwargs(state)
     with WhooingClient(base_url=state.base_url, **auth_kwargs) as client:
         yield client
+
+
+def _section_id(ctx: typer.Context, explicit: str | None) -> str:
+    resolved = _optional_section_id(_state(ctx), explicit)
+    if resolved is None:
+        raise ClickException(
+            "Section ID is required. Provide --section-id, set WHOOING_SECTION_ID, "
+            "or save one with 'whooing profile set --section-id SECTION_ID'."
+        )
+    return resolved
+
+
+def _optional_section_id(state: CliState, explicit: str | None) -> str | None:
+    if explicit is not None:
+        if not explicit.strip():
+            raise ClickException("--section-id must not be empty.")
+        return explicit.strip()
+    environment_section_id = os.environ.get("WHOOING_SECTION_ID")
+    if environment_section_id is not None and environment_section_id.strip():
+        return environment_section_id.strip()
+    profile = load_config(state.config_path).profiles.get(state.profile)
+    if profile is not None and profile.section_id is not None and profile.section_id.strip():
+        return profile.section_id.strip()
+    return None
+
+
+def _fields_with_section(
+    ctx: typer.Context,
+    section_id: str | None,
+    values: list[str] | None,
+) -> dict[str, RequestValue]:
+    fields = _parse_fields(values)
+    parameter_section_id = fields.pop("section_id", None)
+    if parameter_section_id is not None:
+        if section_id is not None:
+            raise ClickException("Use --section-id without --param section_id=...")
+        if not isinstance(parameter_section_id, str):
+            raise ClickException("section_id must be a string.")
+        section_id = parameter_section_id
+    fields["section_id"] = _section_id(ctx, section_id)
+    return fields
+
+
+def _login_section_id(
+    *,
+    base_url: str,
+    access_token: str,
+    requested_section_id: str | None,
+) -> str | None:
+    with WhooingClient(base_url=base_url, access_token=access_token) as client:
+        if requested_section_id is not None:
+            response = client.sections.get(requested_section_id)
+        else:
+            response = client.sections.default()
+    section = SectionResponse.model_validate(response.raw).results
+    if section is None:
+        if requested_section_id is not None:
+            raise ClickException(f"Section not found: {requested_section_id}")
+        return None
+    if section.section_id is None:
+        if requested_section_id is not None:
+            return requested_section_id
+        raise ClickException("Whooing's default section response did not include a section ID.")
+    if requested_section_id is not None and section.section_id != requested_section_id:
+        raise ClickException(f"Section not found: {requested_section_id}")
+    return section.section_id
 
 
 def _profile_credentials(
@@ -1677,7 +2003,7 @@ def _auth_kwargs(state: CliState) -> _ClientAuthKwargs:
 
     raise ClickException(
         "Authentication is required. Provide --api-key, --access-token, environment variables, "
-        "or a saved profile."
+        "a saved profile, or run 'whooing auth login'."
     )
 
 

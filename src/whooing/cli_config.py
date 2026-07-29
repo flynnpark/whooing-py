@@ -17,6 +17,10 @@ class CliConfigError(ValueError):
 class CliProfile:
     api_key: str | None = None
     access_token: str | None = None
+    refresh_token: str | None = None
+    oauth_client_id: str | None = None
+    oauth_scope: str | None = None
+    section_id: str | None = None
 
     def to_json(self) -> JsonObject:
         data: JsonObject = {}
@@ -24,6 +28,14 @@ class CliProfile:
             data["api_key"] = self.api_key
         if self.access_token is not None:
             data["access_token"] = self.access_token
+        if self.refresh_token is not None:
+            data["refresh_token"] = self.refresh_token
+        if self.oauth_client_id is not None:
+            data["oauth_client_id"] = self.oauth_client_id
+        if self.oauth_scope is not None:
+            data["oauth_scope"] = self.oauth_scope
+        if self.section_id is not None:
+            data["section_id"] = self.section_id
         return data
 
 
@@ -60,9 +72,17 @@ def load_config(path: Path) -> CliConfig:
             continue
         api_key = value.get("api_key")
         access_token = value.get("access_token")
+        refresh_token = value.get("refresh_token")
+        oauth_client_id = value.get("oauth_client_id")
+        oauth_scope = value.get("oauth_scope")
+        section_id = value.get("section_id")
         profiles[name] = CliProfile(
             api_key=api_key if isinstance(api_key, str) else None,
             access_token=access_token if isinstance(access_token, str) else None,
+            refresh_token=refresh_token if isinstance(refresh_token, str) else None,
+            oauth_client_id=oauth_client_id if isinstance(oauth_client_id, str) else None,
+            oauth_scope=oauth_scope if isinstance(oauth_scope, str) else None,
+            section_id=section_id if isinstance(section_id, str) else None,
         )
     return CliConfig(profiles=profiles)
 
@@ -96,17 +116,65 @@ def set_profile(
     name: str,
     api_key: str | None = None,
     access_token: str | None = None,
+    section_id: str | None = None,
 ) -> CliConfig:
     current = config.profiles.get(name, CliProfile())
     profiles = dict(config.profiles)
     if api_key is not None and access_token is not None:
         raise ValueError("A profile can store only one authentication method.")
     if api_key is not None:
-        profiles[name] = CliProfile(api_key=api_key)
+        profiles[name] = CliProfile(api_key=api_key, section_id=section_id or current.section_id)
     elif access_token is not None:
-        profiles[name] = CliProfile(access_token=access_token)
+        profiles[name] = CliProfile(
+            access_token=access_token,
+            section_id=section_id or current.section_id,
+        )
+    elif section_id is not None:
+        profiles[name] = CliProfile(
+            api_key=current.api_key,
+            access_token=current.access_token,
+            refresh_token=current.refresh_token,
+            oauth_client_id=current.oauth_client_id,
+            oauth_scope=current.oauth_scope,
+            section_id=section_id,
+        )
     else:
         profiles[name] = current
+    return CliConfig(profiles=profiles)
+
+
+def set_oauth_profile(
+    config: CliConfig,
+    *,
+    name: str,
+    access_token: str,
+    refresh_token: str | None,
+    client_id: str,
+    scope: str | None,
+    section_id: str | None,
+) -> CliConfig:
+    current = config.profiles.get(name, CliProfile())
+    profiles = dict(config.profiles)
+    profiles[name] = CliProfile(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        oauth_client_id=client_id,
+        oauth_scope=scope,
+        section_id=section_id or current.section_id,
+    )
+    return CliConfig(profiles=profiles)
+
+
+def clear_profile_section(config: CliConfig, *, name: str) -> CliConfig:
+    current = config.profiles.get(name, CliProfile())
+    profiles = dict(config.profiles)
+    profiles[name] = CliProfile(
+        api_key=current.api_key,
+        access_token=current.access_token,
+        refresh_token=current.refresh_token,
+        oauth_client_id=current.oauth_client_id,
+        oauth_scope=current.oauth_scope,
+    )
     return CliConfig(profiles=profiles)
 
 
