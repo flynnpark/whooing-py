@@ -92,17 +92,30 @@ from whooing.pydantic_models import (
 from whooing.response import ApiResponse
 from whooing.types import JsonObject, JsonValue, RequestData, RequestValue
 
-app = typer.Typer(no_args_is_help=True, invoke_without_command=True)
-auth_app = typer.Typer(no_args_is_help=True, help="Authentication helpers")
-profile_app = typer.Typer(no_args_is_help=True, help="Manage local CLI profiles")
-api_app = typer.Typer(no_args_is_help=True, help="Call Whooing API paths")
-user_app = typer.Typer(no_args_is_help=True, help="User API commands")
-sections_app = typer.Typer(no_args_is_help=True, help="Section API commands")
-accounts_app = typer.Typer(no_args_is_help=True, help="Account API commands")
-entries_app = typer.Typer(no_args_is_help=True, help="Entry API commands")
-budgets_app = typer.Typer(no_args_is_help=True, help="Budget API commands")
-reports_app = typer.Typer(no_args_is_help=True, help="Report API commands")
-extras_app = typer.Typer(no_args_is_help=True, help="Extra API commands")
+app = typer.Typer(
+    no_args_is_help=True,
+    invoke_without_command=True,
+    help=(
+        "Unofficial Whooing API CLI. JSON is the default output. "
+        "Inspect identifiers with [READ] commands before using [WRITE] commands."
+    ),
+)
+auth_app = typer.Typer(no_args_is_help=True, help="Sign in and manage authentication flows.")
+profile_app = typer.Typer(
+    no_args_is_help=True,
+    help="Read or change credentials and defaults stored in local CLI profiles.",
+)
+api_app = typer.Typer(
+    no_args_is_help=True,
+    help="Call an arbitrary Whooing API path when no typed command exists.",
+)
+user_app = typer.Typer(no_args_is_help=True, help="Read or update Whooing user data.")
+sections_app = typer.Typer(no_args_is_help=True, help="Read or change accounting sections.")
+accounts_app = typer.Typer(no_args_is_help=True, help="Read or change account items.")
+entries_app = typer.Typer(no_args_is_help=True, help="Read, analyze, or change transactions.")
+budgets_app = typer.Typer(no_args_is_help=True, help="Read or change budgets and goals.")
+reports_app = typer.Typer(no_args_is_help=True, help="Read reports or change custom report rows.")
+extras_app = typer.Typer(no_args_is_help=True, help="Use auxiliary Whooing resources.")
 app.add_typer(auth_app, name="auth")
 app.add_typer(profile_app, name="profile")
 app.add_typer(api_app, name="api")
@@ -178,24 +191,39 @@ def _root(
     ] = False,
     config_path: Annotated[
         Path | None,
-        typer.Option("--config", help="Path to the CLI config JSON file."),
+        typer.Option("--config", help="Local profile JSON path; defaults to the user config dir."),
     ] = None,
     profile: Annotated[
         str,
-        typer.Option("--profile", help="CLI profile name."),
+        typer.Option(
+            "--profile",
+            help="Local profile name used for credentials and section defaults.",
+        ),
     ] = "default",
     output: Annotated[
         Literal["json", "table", "csv"],
-        typer.Option("--output", help="Output format."),
+        typer.Option(
+            "--output",
+            help="Output format. JSON preserves the complete API envelope for automation.",
+        ),
     ] = "json",
-    api_key: Annotated[str | None, typer.Option("--api-key", help="Whooing API key.")] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key",
+            help="API key for this invocation; prefer auth login or env vars.",
+        ),
+    ] = None,
     access_token: Annotated[
         str | None,
-        typer.Option("--access-token", help="OAuth bearer access token."),
+        typer.Option(
+            "--access-token",
+            help="Bearer token for this invocation; prefer a profile or environment variable.",
+        ),
     ] = None,
     base_url: Annotated[
         str,
-        typer.Option("--base-url", help="Whooing API base URL."),
+        typer.Option("--base-url", help="API base URL override for testing or compatible servers."),
     ] = "https://whooing.com/api/",
 ) -> None:
     if version:
@@ -211,7 +239,10 @@ def _root(
     )
 
 
-@auth_app.command("oauth2-url")
+@auth_app.command(
+    "oauth2-url",
+    help="[AUTH] Generate an OAuth 2.0 PKCE URL and secret verifier; does not save them.",
+)
 def oauth2_url(
     ctx: typer.Context,
     client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
@@ -238,7 +269,10 @@ def oauth2_url(
     _echo_payload(ctx, payload)
 
 
-@auth_app.command("login", help="Set up a personal Whooing AI integration key.")
+@auth_app.command(
+    "login",
+    help="[LOCAL WRITE] Validate and save a personal Whooing AI integration key.",
+)
 def api_key_login(
     ctx: typer.Context,
     section_id: Annotated[
@@ -297,7 +331,7 @@ def api_key_login(
 
 @auth_app.command(
     "oauth-login",
-    help="Sign in with a registered app using OAuth 2.0 PKCE.",
+    help="[LOCAL WRITE] Sign in with OAuth 2.0 PKCE and save tokens and a section.",
 )
 def oauth_login(
     ctx: typer.Context,
@@ -395,7 +429,7 @@ def oauth_login(
     )
 
 
-@auth_app.command("status", help="Show authentication metadata for the current profile.")
+@auth_app.command("status", help="[LOCAL READ] Show non-secret authentication metadata.")
 def auth_status(ctx: typer.Context) -> None:
     state = _state(ctx)
     profile = load_config(state.config_path).profiles.get(state.profile)
@@ -420,7 +454,10 @@ def auth_status(ctx: typer.Context) -> None:
     )
 
 
-@auth_app.command("logout", help="Remove the current profile and revoke OAuth when available.")
+@auth_app.command(
+    "logout",
+    help="[WRITE] Revoke OAuth when possible, then remove the current local profile.",
+)
 def logout(
     ctx: typer.Context,
     local_only: Annotated[
@@ -450,7 +487,10 @@ def logout(
     )
 
 
-@auth_app.command("exchange-code")
+@auth_app.command(
+    "exchange-code",
+    help="[AUTH] Exchange an OAuth 2.0 code; JSON output contains sensitive tokens.",
+)
 def exchange_code(
     ctx: typer.Context,
     client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
@@ -475,7 +515,10 @@ def exchange_code(
     _echo_payload_model(ctx, _oauth2_token_payload(token), OAuth2TokenResponse)
 
 
-@auth_app.command("refresh")
+@auth_app.command(
+    "refresh",
+    help="[AUTH] Refresh OAuth 2.0 credentials; JSON output contains sensitive tokens.",
+)
 def refresh_token(
     ctx: typer.Context,
     client_id: Annotated[str, typer.Option("--client-id", help="Whooing app client ID.")],
@@ -493,7 +536,7 @@ def refresh_token(
     _echo_payload_model(ctx, _oauth2_token_payload(token), OAuth2TokenResponse)
 
 
-@auth_app.command("revoke")
+@auth_app.command("revoke", help="[WRITE] Revoke an OAuth 2.0 access or refresh token.")
 def revoke_token(
     ctx: typer.Context,
     token: Annotated[str, typer.Option("--token", help="OAuth token to revoke.")],
@@ -507,7 +550,10 @@ def revoke_token(
     _echo_payload(ctx, payload)
 
 
-@auth_app.command("oauth1-request-token")
+@auth_app.command(
+    "oauth1-request-token",
+    help="[AUTH] Request an OAuth 1.0a token and authorization URL.",
+)
 def oauth1_request_token(
     ctx: typer.Context,
     app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
@@ -535,7 +581,10 @@ def oauth1_request_token(
     )
 
 
-@auth_app.command("oauth1-access-token")
+@auth_app.command(
+    "oauth1-access-token",
+    help="[AUTH] Exchange an OAuth 1.0a request token and PIN for sensitive credentials.",
+)
 def oauth1_access_token(
     ctx: typer.Context,
     app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
@@ -557,7 +606,10 @@ def oauth1_access_token(
     _echo_payload_model(ctx, _oauth1_access_token_payload(access_token), OAuth1AccessTokenResponse)
 
 
-@auth_app.command("onetime")
+@auth_app.command(
+    "onetime",
+    help="[AUTH] Exchange a one-time PIN for sensitive OAuth 1.0a credentials.",
+)
 def onetime_token(
     ctx: typer.Context,
     app_id: Annotated[str, typer.Option("--app-id", help="Whooing app ID.")],
@@ -577,7 +629,10 @@ def onetime_token(
     _echo_payload_model(ctx, _oauth1_access_token_payload(access_token), OAuth1AccessTokenResponse)
 
 
-@api_app.command("request")
+@api_app.command(
+    "request",
+    help="[DYNAMIC] Call an API path. GET reads; POST, PUT, and DELETE may change data.",
+)
 def api_request(
     ctx: typer.Context,
     method: Annotated[
@@ -604,14 +659,14 @@ def api_request(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@user_app.command("get")
+@user_app.command("get", help="[READ] Get the authenticated user's profile.")
 def user_get(ctx: typer.Context) -> None:
     with _client_from_state(_state(ctx)) as client:
         response = client.users.get()
     _echo_response(ctx, response, UserResponse)
 
 
-@user_app.command("logs")
+@user_app.command("logs", help="[READ] List user activity logs.")
 def user_logs(
     ctx: typer.Context,
     param: Annotated[
@@ -624,7 +679,7 @@ def user_logs(
     _echo_response(ctx, response, UserLogsResponse)
 
 
-@user_app.command("point-logs")
+@user_app.command("point-logs", help="[READ] List Whooing point history.")
 def user_point_logs(
     ctx: typer.Context,
     param: Annotated[
@@ -637,7 +692,7 @@ def user_point_logs(
     _echo_response(ctx, response, UserPointLogsResponse)
 
 
-@user_app.command("update")
+@user_app.command("update", help="[WRITE] Update fields on the authenticated user's profile.")
 def user_update(
     ctx: typer.Context,
     field: Annotated[
@@ -650,14 +705,14 @@ def user_update(
     _echo_response(ctx, response, UserResponse)
 
 
-@sections_app.command("list")
+@sections_app.command("list", help="[READ] List accounting sections and their IDs.")
 def sections_list(ctx: typer.Context) -> None:
     with _client_from_state(_state(ctx)) as client:
         response = client.sections.list()
     _echo_response(ctx, response, SectionsResponse)
 
 
-@sections_app.command("get")
+@sections_app.command("get", help="[READ] Get one accounting section by ID.")
 def sections_get(
     ctx: typer.Context,
     section_id: Annotated[str, typer.Argument(help="Section ID.")],
@@ -667,14 +722,14 @@ def sections_get(
     _echo_response(ctx, response, SectionResponse)
 
 
-@sections_app.command("default")
+@sections_app.command("default", help="[READ] Get Whooing's default accounting section.")
 def sections_default(ctx: typer.Context) -> None:
     with _client_from_state(_state(ctx)) as client:
         response = client.sections.default()
     _echo_response(ctx, response, SectionResponse)
 
 
-@sections_app.command("create")
+@sections_app.command("create", help="[WRITE] Create an accounting section.")
 def sections_create(
     ctx: typer.Context,
     title: Annotated[str, typer.Option("--title", help="Section title.")],
@@ -688,7 +743,7 @@ def sections_create(
     _echo_response(ctx, response, SectionResponse)
 
 
-@sections_app.command("update")
+@sections_app.command("update", help="[WRITE] Update an accounting section.")
 def sections_update(
     ctx: typer.Context,
     section_id: Annotated[str, typer.Argument(help="Section ID.")],
@@ -702,7 +757,7 @@ def sections_update(
     _echo_response(ctx, response, SectionResponse)
 
 
-@sections_app.command("delete")
+@sections_app.command("delete", help="[WRITE] Delete one or more accounting sections.")
 def sections_delete(
     ctx: typer.Context,
     section_id: Annotated[list[str], typer.Argument(help="Section ID. Repeatable.")],
@@ -712,7 +767,7 @@ def sections_delete(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@sections_app.command("sort")
+@sections_app.command("sort", help="[WRITE] Replace the accounting section display order.")
 def sections_sort(
     ctx: typer.Context,
     section_id: Annotated[list[str], typer.Argument(help="Section IDs in desired order.")],
@@ -722,7 +777,7 @@ def sections_sort(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@accounts_app.command("list")
+@accounts_app.command("list", help="[READ] List all accounts or one account group in a section.")
 def accounts_list(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -749,7 +804,7 @@ def accounts_list(
             _echo_response(ctx, response, AccountsByTypeResponse)
 
 
-@accounts_app.command("get")
+@accounts_app.command("get", help="[READ] Get one account by group and ID.")
 def accounts_get(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -762,7 +817,7 @@ def accounts_get(
     _echo_response(ctx, response, AccountResponse)
 
 
-@accounts_app.command("exists")
+@accounts_app.command("exists", help="[READ] Check whether an account exists.")
 def accounts_exists(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -775,7 +830,7 @@ def accounts_exists(
     _echo_response(ctx, response, AccountExistenceResponse)
 
 
-@accounts_app.command("create")
+@accounts_app.command("create", help="[WRITE] Create an account in a section.")
 def accounts_create(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -797,7 +852,7 @@ def accounts_create(
     _echo_response(ctx, response, AccountResponse)
 
 
-@accounts_app.command("update")
+@accounts_app.command("update", help="[WRITE] Update an account.")
 def accounts_update(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -819,7 +874,7 @@ def accounts_update(
     _echo_response(ctx, response, AccountResponse)
 
 
-@accounts_app.command("delete")
+@accounts_app.command("delete", help="[WRITE] Delete an account.")
 def accounts_delete(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -832,7 +887,7 @@ def accounts_delete(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@accounts_app.command("sort")
+@accounts_app.command("sort", help="[WRITE] Replace account display order within a group.")
 def accounts_sort(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -845,7 +900,7 @@ def accounts_sort(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@entries_app.command("list")
+@entries_app.command("list", help="[READ] List transactions using optional API filters.")
 def entries_list(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -860,7 +915,7 @@ def entries_list(
     _echo_response(ctx, response, EntriesListResponse)
 
 
-@entries_app.command("latest")
+@entries_app.command("latest", help="[READ] List recent transactions.")
 def entries_latest(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -875,7 +930,7 @@ def entries_latest(
     _echo_response(ctx, response, EntriesResponse)
 
 
-@entries_app.command("get")
+@entries_app.command("get", help="[READ] Get one transaction by ID.")
 def entries_get(
     ctx: typer.Context,
     entry_id: Annotated[str, typer.Argument(help="Entry ID.")],
@@ -887,7 +942,7 @@ def entries_get(
     _echo_response(ctx, response, EntryResponse)
 
 
-@entries_app.command("create")
+@entries_app.command("create", help="[WRITE] Create a transaction from form fields.")
 def entries_create(
     ctx: typer.Context,
     field: Annotated[
@@ -902,7 +957,7 @@ def entries_create(
     _echo_response(ctx, response, EntryResponse)
 
 
-@entries_app.command("update")
+@entries_app.command("update", help="[WRITE] Update one transaction from form fields.")
 def entries_update(
     ctx: typer.Context,
     entry_id: Annotated[str, typer.Argument(help="Entry ID.")],
@@ -918,7 +973,7 @@ def entries_update(
     _echo_response(ctx, response, EntryResponse)
 
 
-@entries_app.command("update-many")
+@entries_app.command("update-many", help="[WRITE] Apply form fields to multiple transactions.")
 def entries_update_many(
     ctx: typer.Context,
     entry_id: Annotated[list[str], typer.Argument(help="Entry IDs.")],
@@ -938,7 +993,7 @@ def entries_update_many(
     _echo_response(ctx, response, EntriesResponse)
 
 
-@entries_app.command("delete")
+@entries_app.command("delete", help="[WRITE] Delete one or more transactions.")
 def entries_delete(
     ctx: typer.Context,
     entry_id: Annotated[list[str], typer.Argument(help="Entry IDs.")],
@@ -950,7 +1005,7 @@ def entries_delete(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@entries_app.command("latest-items")
+@entries_app.command("latest-items", help="[READ] List recently used transaction items.")
 def entries_latest_items(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -961,7 +1016,7 @@ def entries_latest_items(
     _echo_response(ctx, response, EntryNameAmountResponse)
 
 
-@entries_app.command("analytics")
+@entries_app.command("analytics", help="[READ] Run a named transaction analysis endpoint.")
 def entries_analytics(
     ctx: typer.Context,
     name: Annotated[str, typer.Argument(help="Analytics endpoint name.")],
@@ -977,7 +1032,10 @@ def entries_analytics(
     _echo_response(ctx, response, _entry_analytics_model(name))
 
 
-@entries_app.command("parse-outside")
+@entries_app.command(
+    "parse-outside",
+    help="[READ] Parse external transaction rows without creating transactions.",
+)
 def entries_parse_outside(
     ctx: typer.Context,
     rows: Annotated[str, typer.Option("--rows", help="Outside entry rows.")],
@@ -989,7 +1047,10 @@ def entries_parse_outside(
     _echo_response(ctx, response, EntriesResponse)
 
 
-@entries_app.command("report-outside-source")
+@entries_app.command(
+    "report-outside-source",
+    help="[WRITE] Report an unsupported external parser source to Whooing.",
+)
 def entries_report_outside_source(
     ctx: typer.Context,
     source: Annotated[str, typer.Option("--source", help="Outside parser source.")],
@@ -999,7 +1060,7 @@ def entries_report_outside_source(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@budgets_app.command("get")
+@budgets_app.command("get", help="[READ] Get monthly budgets for an account group.")
 def budgets_get(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -1015,7 +1076,7 @@ def budgets_get(
     _echo_response(ctx, response, BudgetsResponse)
 
 
-@budgets_app.command("update")
+@budgets_app.command("update", help="[WRITE] Set account budgets for a target month.")
 def budgets_update(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -1037,7 +1098,10 @@ def budgets_update(
     _echo_response(ctx, response, BudgetReportResponse)
 
 
-@budgets_app.command("update-basic-total")
+@budgets_app.command(
+    "update-basic-total",
+    help="[WRITE] Set monthly basic budget totals for a date range.",
+)
 def budgets_update_basic_total(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -1061,7 +1125,7 @@ def budgets_update_basic_total(
     _echo_response(ctx, response, BudgetReportResponse)
 
 
-@budgets_app.command("delete")
+@budgets_app.command("delete", help="[WRITE] Delete budgets in a date range.")
 def budgets_delete(
     ctx: typer.Context,
     account: Annotated[str, typer.Argument(help="Account group.")],
@@ -1080,7 +1144,7 @@ def budgets_delete(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@budgets_app.command("goal")
+@budgets_app.command("goal", help="[READ] Get the long-term budget goal.")
 def budgets_goal(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1095,7 +1159,7 @@ def budgets_goal(
     _echo_response(ctx, response, BudgetGoalResponse)
 
 
-@budgets_app.command("update-goal")
+@budgets_app.command("update-goal", help="[WRITE] Update the long-term budget goal.")
 def budgets_update_goal(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1110,7 +1174,7 @@ def budgets_update_goal(
     _echo_response(ctx, response, BudgetGoalResponse)
 
 
-@budgets_app.command("delete-goal")
+@budgets_app.command("delete-goal", help="[WRITE] Delete the long-term budget goal.")
 def budgets_delete_goal(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1121,7 +1185,7 @@ def budgets_delete_goal(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@budgets_app.command("capital-goal")
+@budgets_app.command("capital-goal", help="[READ] Get monthly capital goals.")
 def budgets_capital_goal(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1136,7 +1200,7 @@ def budgets_capital_goal(
     _echo_response(ctx, response, CapitalGoalResponse)
 
 
-@budgets_app.command("update-capital-goal")
+@budgets_app.command("update-capital-goal", help="[WRITE] Set monthly capital goals.")
 def budgets_update_capital_goal(
     ctx: typer.Context,
     month: Annotated[
@@ -1155,7 +1219,10 @@ def budgets_update_capital_goal(
     _echo_response(ctx, response, CapitalGoalResponse)
 
 
-@reports_app.command("report")
+@reports_app.command(
+    "report",
+    help="[READ] Get a financial report, optionally narrowed by account.",
+)
 def reports_report(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
@@ -1175,7 +1242,7 @@ def reports_report(
     _echo_response(ctx, response, ReportResponse)
 
 
-@reports_app.command("summary")
+@reports_app.command("summary", help="[READ] Get a summarized financial report.")
 def reports_summary(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
@@ -1193,7 +1260,7 @@ def reports_summary(
     _echo_response(ctx, response, ReportSummaryResponse)
 
 
-@reports_app.command("custom-rows")
+@reports_app.command("custom-rows", help="[READ] List or inspect custom financial report rows.")
 def reports_custom_rows(
     ctx: typer.Context,
     report: Annotated[
@@ -1223,7 +1290,10 @@ def reports_custom_rows(
     _echo_response(ctx, response, CustomReportRowsResponse)
 
 
-@reports_app.command("update-custom-rows")
+@reports_app.command(
+    "update-custom-rows",
+    help="[WRITE] Create, delete, sort, or clean custom financial report rows.",
+)
 def reports_update_custom_rows(
     ctx: typer.Context,
     report: Annotated[
@@ -1251,7 +1321,7 @@ def reports_update_custom_rows(
     _echo_response(ctx, response, ReportsListResponse)
 
 
-@extras_app.command("frequent-items")
+@extras_app.command("frequent-items", help="[READ] List or inspect frequent-entry templates.")
 def extras_frequent_items(
     ctx: typer.Context,
     slot: Annotated[str | None, typer.Option("--slot", help="Frequent item slot.")] = None,
@@ -1272,7 +1342,7 @@ def extras_frequent_items(
     _echo_response(ctx, response, model)
 
 
-@extras_app.command("create-frequent-item")
+@extras_app.command("create-frequent-item", help="[WRITE] Create a frequent-entry template.")
 def extras_create_frequent_item(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
@@ -1294,7 +1364,7 @@ def extras_create_frequent_item(
     _echo_response(ctx, response, FrequentItemsResponse)
 
 
-@extras_app.command("update-frequent-item")
+@extras_app.command("update-frequent-item", help="[WRITE] Update a frequent-entry template.")
 def extras_update_frequent_item(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
@@ -1309,7 +1379,10 @@ def extras_update_frequent_item(
     _echo_response(ctx, response, FrequentItemsResponse)
 
 
-@extras_app.command("delete-frequent-item")
+@extras_app.command(
+    "delete-frequent-item",
+    help="[WRITE] Delete one or more frequent-entry templates.",
+)
 def extras_delete_frequent_item(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
@@ -1322,7 +1395,10 @@ def extras_delete_frequent_item(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("sort-frequent-items")
+@extras_app.command(
+    "sort-frequent-items",
+    help="[WRITE] Replace frequent-entry template order within a slot.",
+)
 def extras_sort_frequent_items(
     ctx: typer.Context,
     slot: Annotated[str, typer.Argument(help="Frequent item slot.")],
@@ -1335,7 +1411,7 @@ def extras_sort_frequent_items(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("monthly-items")
+@extras_app.command("monthly-items", help="[READ] List or inspect monthly-entry templates.")
 def extras_monthly_items(
     ctx: typer.Context,
     slot: Annotated[str | None, typer.Option("--slot", help="Monthly item slot.")] = None,
@@ -1356,7 +1432,7 @@ def extras_monthly_items(
     _echo_response(ctx, response, model)
 
 
-@extras_app.command("create-monthly-item")
+@extras_app.command("create-monthly-item", help="[WRITE] Create a monthly-entry template.")
 def extras_create_monthly_item(
     ctx: typer.Context,
     item: Annotated[str, typer.Option("--item", help="Item name.")],
@@ -1376,7 +1452,7 @@ def extras_create_monthly_item(
     _echo_response(ctx, response, MonthlyItemsListResponse)
 
 
-@extras_app.command("update-monthly-item")
+@extras_app.command("update-monthly-item", help="[WRITE] Update a monthly-entry template.")
 def extras_update_monthly_item(
     ctx: typer.Context,
     item_id: Annotated[str, typer.Argument(help="Monthly item ID.")],
@@ -1390,7 +1466,10 @@ def extras_update_monthly_item(
     _echo_response(ctx, response, MonthlyItemsListResponse)
 
 
-@extras_app.command("delete-monthly-item")
+@extras_app.command(
+    "delete-monthly-item",
+    help="[WRITE] Delete one or more monthly-entry templates.",
+)
 def extras_delete_monthly_item(
     ctx: typer.Context,
     item_id: Annotated[list[str], typer.Argument(help="Monthly item IDs.")],
@@ -1402,7 +1481,7 @@ def extras_delete_monthly_item(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("bill")
+@extras_app.command("bill", help="[READ] Get credit-card billing data.")
 def extras_bill(
     ctx: typer.Context,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
@@ -1420,7 +1499,7 @@ def extras_bill(
     _echo_response(ctx, response, BillsListResponse if account_id is None else BillsResponse)
 
 
-@extras_app.command("checkcard")
+@extras_app.command("checkcard", help="[READ] Get debit-card usage data.")
 def extras_checkcard(
     ctx: typer.Context,
     account_id: Annotated[str | None, typer.Option("--account-id", help="Account ID.")] = None,
@@ -1439,7 +1518,7 @@ def extras_checkcard(
     _echo_response(ctx, response, model)
 
 
-@extras_app.command("in-out")
+@extras_app.command("in-out", help="[READ] Get cash-flow data, optionally by account.")
 def extras_in_out(
     ctx: typer.Context,
     account: Annotated[str | None, typer.Option("--account", help="Account group.")] = None,
@@ -1465,7 +1544,7 @@ def extras_in_out(
     _echo_response(ctx, response, model)
 
 
-@extras_app.command("calendar")
+@extras_app.command("calendar", help="[READ] Get calendar-based financial data.")
 def extras_calendar(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1481,7 +1560,7 @@ def extras_calendar(
     _echo_response(ctx, response, CalendarResponse)
 
 
-@extras_app.command("post-its")
+@extras_app.command("post-its", help="[READ] List or inspect post-its.")
 def extras_post_its(
     ctx: typer.Context,
     post_it_id: Annotated[str | None, typer.Option("--post-it-id", help="Post-it ID.")] = None,
@@ -1499,7 +1578,7 @@ def extras_post_its(
     _echo_response(ctx, response, PostItsResponse if post_it_id is None else PostItResponse)
 
 
-@extras_app.command("create-post-it")
+@extras_app.command("create-post-it", help="[WRITE] Create a post-it.")
 def extras_create_post_it(
     ctx: typer.Context,
     title: Annotated[str, typer.Option("--title", help="Post-it title.")],
@@ -1521,7 +1600,7 @@ def extras_create_post_it(
     _echo_response(ctx, response, PostItResponse)
 
 
-@extras_app.command("update-post-it")
+@extras_app.command("update-post-it", help="[WRITE] Update a post-it.")
 def extras_update_post_it(
     ctx: typer.Context,
     post_it_id: Annotated[str, typer.Argument(help="Post-it ID.")],
@@ -1535,7 +1614,7 @@ def extras_update_post_it(
     _echo_response(ctx, response, PostItResponse)
 
 
-@extras_app.command("delete-post-it")
+@extras_app.command("delete-post-it", help="[WRITE] Delete one or more post-its.")
 def extras_delete_post_it(
     ctx: typer.Context,
     post_it_id: Annotated[list[str], typer.Argument(help="Post-it IDs.")],
@@ -1547,7 +1626,7 @@ def extras_delete_post_it(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("messages")
+@extras_app.command("messages", help="[READ] List message threads or messages with one user.")
 def extras_messages(
     ctx: typer.Context,
     opponent_user_id: Annotated[
@@ -1564,7 +1643,7 @@ def extras_messages(
     _echo_response(ctx, response, MessagesResponse)
 
 
-@extras_app.command("send-message")
+@extras_app.command("send-message", help="[WRITE] Send a message to one or more users.")
 def extras_send_message(
     ctx: typer.Context,
     opponent_user_id: Annotated[list[str], typer.Option("--opponent-user-id", help="User ID.")],
@@ -1583,7 +1662,7 @@ def extras_send_message(
     _echo_response(ctx, response, MessagesResponse)
 
 
-@extras_app.command("delete-messages")
+@extras_app.command("delete-messages", help="[WRITE] Delete a message thread with one user.")
 def extras_delete_messages(
     ctx: typer.Context,
     opponent_user_id: Annotated[str, typer.Argument(help="Opponent user ID.")],
@@ -1593,14 +1672,14 @@ def extras_delete_messages(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("unread-messages")
+@extras_app.command("unread-messages", help="[READ] Get unread message metadata.")
 def extras_unread_messages(ctx: typer.Context) -> None:
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.unread_messages()
     _echo_response(ctx, response, UnreadMessagesResponse)
 
 
-@extras_app.command("bbs")
+@extras_app.command("bbs", help="[READ] List or inspect BBS posts, comments, and replies.")
 def extras_bbs(
     ctx: typer.Context,
     category: Annotated[str | None, typer.Option("--category", help="BBS category.")] = None,
@@ -1622,7 +1701,7 @@ def extras_bbs(
     _echo_response(ctx, response, model)
 
 
-@extras_app.command("create-bbs")
+@extras_app.command("create-bbs", help="[WRITE] Create a BBS post.")
 def extras_create_bbs(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1643,7 +1722,7 @@ def extras_create_bbs(
     _echo_response(ctx, response, BbsPostResponse)
 
 
-@extras_app.command("update-bbs")
+@extras_app.command("update-bbs", help="[WRITE] Update a BBS post.")
 def extras_update_bbs(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1658,7 +1737,7 @@ def extras_update_bbs(
     _echo_response(ctx, response, BbsPostResponse)
 
 
-@extras_app.command("delete-bbs")
+@extras_app.command("delete-bbs", help="[WRITE] Delete one or more BBS posts.")
 def extras_delete_bbs(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1669,7 +1748,7 @@ def extras_delete_bbs(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("create-bbs-comment")
+@extras_app.command("create-bbs-comment", help="[WRITE] Add a comment to a BBS post.")
 def extras_create_bbs_comment(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1690,7 +1769,7 @@ def extras_create_bbs_comment(
     _echo_response(ctx, response, BbsCommentsResponse)
 
 
-@extras_app.command("update-bbs-comment")
+@extras_app.command("update-bbs-comment", help="[WRITE] Update a BBS comment.")
 def extras_update_bbs_comment(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1711,7 +1790,10 @@ def extras_update_bbs_comment(
     _echo_response(ctx, response, BbsCommentsResponse)
 
 
-@extras_app.command("delete-bbs-comment")
+@extras_app.command(
+    "delete-bbs-comment",
+    help="[WRITE] Delete one or more comments from a BBS post.",
+)
 def extras_delete_bbs_comment(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1723,7 +1805,7 @@ def extras_delete_bbs_comment(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("create-bbs-reply")
+@extras_app.command("create-bbs-reply", help="[WRITE] Add a reply to a BBS comment.")
 def extras_create_bbs_reply(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1746,7 +1828,10 @@ def extras_create_bbs_reply(
     _echo_response(ctx, response, BbsCommentsResponse)
 
 
-@extras_app.command("delete-bbs-reply")
+@extras_app.command(
+    "delete-bbs-reply",
+    help="[WRITE] Delete one or more replies from a BBS comment.",
+)
 def extras_delete_bbs_reply(
     ctx: typer.Context,
     category: Annotated[str, typer.Argument(help="BBS category.")],
@@ -1759,7 +1844,7 @@ def extras_delete_bbs_reply(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("recommend-bbs")
+@extras_app.command("recommend-bbs", help="[WRITE] Recommend a BBS post or comment.")
 def extras_recommend_bbs(
     ctx: typer.Context,
     bbs_id: Annotated[str, typer.Option("--bbs-id", help="BBS post ID.")],
@@ -1770,7 +1855,7 @@ def extras_recommend_bbs(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("prepare-upload")
+@extras_app.command("prepare-upload", help="[WRITE] Allocate metadata for a file upload.")
 def extras_prepare_upload(
     ctx: typer.Context,
     name: Annotated[str, typer.Option("--name", help="File name.")],
@@ -1782,7 +1867,7 @@ def extras_prepare_upload(
     _echo_response(ctx, response, UploadInfoResponse)
 
 
-@extras_app.command("complete-upload")
+@extras_app.command("complete-upload", help="[WRITE] Mark a prepared file upload as complete.")
 def extras_complete_upload(
     ctx: typer.Context,
     uuid: Annotated[str, typer.Argument(help="Prepared upload UUID.")],
@@ -1792,7 +1877,7 @@ def extras_complete_upload(
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@extras_app.command("notifications")
+@extras_app.command("notifications", help="[READ] List notifications, optionally for one section.")
 def extras_notifications(
     ctx: typer.Context,
     section_id: Annotated[str | None, typer.Option("--section-id", help="Section ID.")] = None,
@@ -1803,14 +1888,20 @@ def extras_notifications(
     _echo_response(ctx, response, NotificationsResponse)
 
 
-@extras_app.command("mark-notifications-read")
+@extras_app.command(
+    "mark-notifications-read",
+    help="[WRITE] Mark all notifications as read.",
+)
 def extras_mark_notifications_read(ctx: typer.Context) -> None:
     with _client_from_state(_state(ctx)) as client:
         response = client.extras.mark_notifications_read()
     _echo_response(ctx, response, WhooingEnvelope)
 
 
-@profile_app.command("set")
+@profile_app.command(
+    "set",
+    help="[LOCAL WRITE] Save credentials or a default section in the selected profile.",
+)
 def profile_set(
     ctx: typer.Context,
     api_key: Annotated[str | None, typer.Option("--api-key", help="Whooing API key.")] = None,
@@ -1865,7 +1956,7 @@ def profile_set(
     _echo_payload(ctx, {"profile": state.profile, "saved": True})
 
 
-@profile_app.command("show")
+@profile_app.command("show", help="[LOCAL READ] Show the selected profile with masked secrets.")
 def profile_show(ctx: typer.Context) -> None:
     state = _state(ctx)
     profile = load_config(state.config_path).profiles.get(state.profile)
@@ -1885,14 +1976,14 @@ def profile_show(ctx: typer.Context) -> None:
     )
 
 
-@profile_app.command("list")
+@profile_app.command("list", help="[LOCAL READ] List saved profile names.")
 def profile_list(ctx: typer.Context) -> None:
     config = load_config(_state(ctx).config_path)
     profiles: list[JsonValue] = [name for name in sorted(config.profiles)]
     _echo_payload(ctx, {"profiles": profiles})
 
 
-@profile_app.command("remove")
+@profile_app.command("remove", help="[LOCAL WRITE] Remove the selected local profile only.")
 def profile_remove(ctx: typer.Context) -> None:
     state = _state(ctx)
     config = remove_profile(load_config(state.config_path), name=state.profile)

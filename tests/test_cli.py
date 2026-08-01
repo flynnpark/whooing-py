@@ -9,6 +9,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from pydantic import ValidationError
+from typer.core import TyperGroup
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from whooing import __version__
@@ -21,6 +23,14 @@ from whooing.types import JsonObject, JsonValue, RequestData
 
 runner = CliRunner()
 ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+SAFETY_HELP_PREFIXES = (
+    "[READ]",
+    "[WRITE]",
+    "[LOCAL READ]",
+    "[LOCAL WRITE]",
+    "[AUTH]",
+    "[DYNAMIC]",
+)
 
 
 def strip_ansi(value: str) -> str:
@@ -475,6 +485,28 @@ def test_help_exposes_resource_command_groups() -> None:
         "extras",
     ]:
         assert command in result.stdout
+
+
+def test_every_leaf_command_help_declares_safety_and_behavior() -> None:
+    root_command = get_command(app)
+
+    assert isinstance(root_command, TyperGroup)
+    for group_name, group_command in root_command.commands.items():
+        assert group_command.help, f"Missing help for command group: {group_name}"
+        assert isinstance(group_command, TyperGroup)
+        for command_name, command in group_command.commands.items():
+            assert command.help, f"Missing help for command: {group_name} {command_name}"
+            assert command.help.startswith(SAFETY_HELP_PREFIXES), (
+                f"Missing safety prefix for command: {group_name} {command_name}"
+            )
+
+
+def test_resource_help_explains_read_and_write_commands() -> None:
+    result = runner.invoke(app, ["entries", "--help"])
+
+    assert result.exit_code == 0
+    assert "[READ] List transactions using optional API filters." in result.stdout
+    assert "[WRITE] Create a transaction from form fields." in result.stdout
 
 
 def test_profile_commands_store_and_mask_credentials(tmp_path: Path) -> None:

@@ -16,8 +16,42 @@ PKCE 토큰 헬퍼, 주요 API 리소스 호출 메서드, 응답 메타데이�
 
 ## 설치
 
+Python 라이브러리로 사용할 때는 프로젝트 환경에 설치합니다.
+
 ```sh
 python -m pip install whooing-py
+```
+
+CLI를 어느 디렉터리에서나 실행하려면 `uv`의 독립된 도구 환경에 설치합니다.
+
+```sh
+uv tool install whooing-py
+whooing --help
+```
+
+이 방식은 시스템 Python이나 `asdf`로 관리하는 Python 환경을 변경하지 않습니다. 패키지와
+의존성은 `uv`가 격리된 환경에서 관리하고, `whooing` 실행 파일만 현재 사용자의 실행 경로에
+노출합니다. 따라서 시스템 전체 설치는 아니지만 현재 사용자에게는 전역 명령처럼 동작합니다.
+
+`whooing` 명령을 찾지 못하면 실행 파일 디렉터리를 셸의 `PATH`에 추가하고 터미널을 다시
+시작합니다.
+
+```sh
+uv tool update-shell
+uv tool dir --bin
+```
+
+업데이트와 제거도 `uv`로 관리할 수 있습니다.
+
+```sh
+uv tool upgrade whooing-py
+uv tool uninstall whooing-py
+```
+
+설치하지 않고 한 번만 실행하려면 다음 명령을 사용합니다.
+
+```sh
+uvx --from whooing-py whooing --help
 ```
 
 Python 3.11 이상을 지원합니다.
@@ -323,9 +357,9 @@ whooing sections list
 직접 API 경로 호출:
 
 ```sh
-whooing --api-key 발급된_인증키 api request GET sections.json
-whooing --api-key 발급된_인증키 --output table accounts list --section-id s123
-whooing --api-key 발급된_인증키 entries create \
+whooing api request GET sections.json
+whooing --output table accounts list --section-id s123
+whooing entries create \
   --section-id s123 \
   --field entry_date=20260620 \
   --field l_account=expenses \
@@ -336,8 +370,22 @@ whooing --api-key 발급된_인증키 entries create \
   --field money=5000
 ```
 
-목적별 CLI 사용법은 [CLI 사용 가이드](docs/CLI_USAGE.md)를 참고합니다. CLI 확장 방향과
-라이브러리 경계는 [CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로 관리합니다.
+### AI 에이전트에서 사용
+
+CLI는 자동화에서 전체 API envelope을 보존하는 JSON 출력을 기본으로 사용합니다. 각 명령의
+`--help` 설명에는 `[READ]`, `[WRITE]`, `[LOCAL WRITE]` 같은 안전성 태그가 표시됩니다. AI
+에이전트는 전용 `[READ]` 명령으로 식별자와 현재 상태를 먼저 확인하고, 사용자가 명시적으로
+변경을 요청한 경우에만 `[WRITE]` 명령을 실행해야 합니다.
+
+```sh
+whooing --help
+whooing entries --help
+whooing entries list --help
+```
+
+인증·섹션 선택 순서, 자연어 요청과 명령의 매핑, 출력 envelope, 종료 코드, 변경 명령의 전체
+목록은 [CLI 사용 가이드](docs/CLI_USAGE.md)에 정의합니다. CLI 확장 방향과 라이브러리 경계는
+[CLI 설계 메모](docs/CLI_DESIGN.md)를 기준으로 관리합니다.
 
 ## 리소스 구성
 
