@@ -42,7 +42,7 @@ from whooing.models import (
 from whooing.response import ApiResponse
 from whooing.retry import RetryPolicy
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "APIKeyAuth",
