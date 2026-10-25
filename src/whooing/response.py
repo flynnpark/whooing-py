@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Protocol, TypeVar
+from typing import TYPE_CHECKING, Generic, Protocol, TypeVar, cast
+
+if TYPE_CHECKING:
+    from typing_extensions import TypeForm
 
 from whooing.exceptions import (
     WhooingAPIError,
@@ -104,5 +107,6 @@ def _object_or_empty(value: JsonValue | None) -> JsonObject:
 def _validate_with_type_adapter(annotation: object, value: object) -> object:
     from pydantic import TypeAdapter
 
-    adapter: TypeAdapter[object] = TypeAdapter(annotation)
+    # Preserve the public object parameter while Pydantic validates the type form at runtime.
+    adapter: TypeAdapter[object] = TypeAdapter(cast("TypeForm[object]", annotation))
     return adapter.validate_python(value)
